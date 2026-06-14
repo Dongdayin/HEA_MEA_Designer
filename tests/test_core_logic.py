@@ -172,6 +172,18 @@ class CoreLogicTests(unittest.TestCase):
         self.assertIn("Masses", written)
         self.assertIn("Atoms # atomic", written)
         self.assertIn("# Ni", written)
+        title = written.splitlines()[0]
+        self.assertTrue(title.startswith("# DDOJY generated LAMMPS data"))
+        self.assertIn("source=input.lmp", title)
+        self.assertIn("atoms=2", title)
+        self.assertIn("atom_types=1", title)
+
+    def test_lammps_title_metadata_sanitizes_values(self) -> None:
+        title = app.format_lammps_title_line(Path("bad|name\nfile.lmp"), 12, 3)
+
+        self.assertIn("source=bad/name file.lmp", title)
+        self.assertIn("atoms=12", title)
+        self.assertIn("atom_types=3", title)
 
     def test_read_lammps_structure_accepts_comments_and_validates_counts(self) -> None:
         valid_text = "\n".join(

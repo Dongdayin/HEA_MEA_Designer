@@ -2194,6 +2194,32 @@ def replace_box_lines(header_lines: list[str], box: BoxBounds) -> list[str]:
     return updated
 
 
+def _metadata_value(value: object) -> str:
+    text = str(value).replace("\n", " ").replace("\r", " ").replace("|", "/")
+    return " ".join(text.split())
+
+
+def format_lammps_title_line(source_path: Path, atom_count: int, atom_types: int) -> str:
+    generated_at = datetime.now().isoformat(timespec="seconds")
+    source_text = _metadata_value(source_path.as_posix() if isinstance(source_path, Path) else source_path)
+    return (
+        "# DDOJY generated LAMMPS data"
+        f" | generated_at={generated_at}"
+        f" | source={source_text}"
+        f" | atoms={atom_count}"
+        f" | atom_types={atom_types}"
+    )
+
+
+def apply_lammps_title_metadata(header_lines: list[str], source_path: Path, atom_count: int, atom_types: int) -> list[str]:
+    updated = list(header_lines)
+    title = format_lammps_title_line(source_path, atom_count, atom_types)
+    if updated:
+        updated[0] = title
+        return updated
+    return [title, ""]
+
+
 def format_mass_section(entries: list[CompositionEntry]) -> list[str]:
     lines = ["Masses", ""]
     for index, entry in enumerate(entries, start=1):
@@ -2248,6 +2274,7 @@ def write_lammps_structure(
     if actual_atom_types > atom_types:
         raise ValueError(f"实际 atom type 最大值为 {actual_atom_types}，超过头部声明的 {atom_types}")
     header_lines = replace_count_lines(structure.header_lines, len(atoms), atom_types)
+    header_lines = apply_lammps_title_metadata(header_lines, structure.path, len(atoms), atom_types)
     if box_override is not None:
         header_lines = replace_box_lines(header_lines, box_override)
     lines: list[str] = []
