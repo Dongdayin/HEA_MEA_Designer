@@ -46,6 +46,56 @@ class CoreLogicTests(unittest.TestCase):
     def test_relative_workspace_paths_resolve_under_app_root(self) -> None:
         self.assertEqual(app.resolve_workspace_path("generated"), app.ROOT / "generated")
 
+    def test_atomsk_duplicate_command_plan_is_reproducible(self) -> None:
+        config = app.AtomskPostprocessConfig(
+            atomsk_path=Path("atomsk.exe"),
+            source_path=Path("source.lmp"),
+            output_path=Path("out.lmp"),
+            operation="duplicate",
+            duplicate=(2, 3, 4),
+            mirror_axis="Z",
+        )
+
+        plan = app.build_atomsk_postprocess_plan(config)
+
+        self.assertEqual(plan.temporary_paths, ())
+        self.assertEqual(plan.commands, [["atomsk.exe", "source.lmp", "-duplicate", "2", "3", "4", "-wrap", "out.lmp"]])
+
+    def test_atomsk_mirror_merge_plan_uses_temp_then_merge(self) -> None:
+        config = app.AtomskPostprocessConfig(
+            atomsk_path=Path("atomsk.exe"),
+            source_path=Path("source.cfg"),
+            output_path=Path("merged.lmp"),
+            operation=app.ATOMSK_OPERATION_LABELS["mirror_merge"],
+            duplicate=(1, 1, 1),
+            mirror_axis="y",
+        )
+
+        plan = app.build_atomsk_postprocess_plan(config)
+
+        self.assertEqual(plan.temporary_paths, (Path("merged_mirror_tmp.cfg"),))
+        self.assertEqual(plan.commands[0], ["atomsk.exe", "source.cfg", "-mirror", "0", "Y", "-wrap", "merged_mirror_tmp.cfg"])
+        self.assertEqual(plan.commands[1], ["atomsk.exe", "--merge", "Y", "2", "source.cfg", "merged_mirror_tmp.cfg", "merged.lmp", "-wrap"])
+
+    def test_atomsk_mirror_merge_refuses_temp_path_collision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            temp_dir = Path(tmpdir)
+            atomsk_exe = temp_dir / "atomsk.exe"
+            source_path = temp_dir / "merged_mirror_tmp.lmp"
+            atomsk_exe.write_text("stub", encoding="utf-8")
+            source_path.write_text("LAMMPS data", encoding="utf-8")
+            config = app.AtomskPostprocessConfig(
+                atomsk_path=atomsk_exe,
+                source_path=source_path,
+                output_path=temp_dir / "merged.lmp",
+                operation="mirror_merge",
+                duplicate=(1, 1, 1),
+                mirror_axis="Z",
+            )
+
+            with self.assertRaises(ValueError):
+                app.run_atomsk_postprocess(config)
+
     def test_recipe_parsing_merges_symbols_and_normalizes_formula(self) -> None:
         entries = app.parse_recipe_text("Ni50 Cr25 Ni25")
 
