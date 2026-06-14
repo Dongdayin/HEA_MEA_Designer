@@ -1106,6 +1106,8 @@ def parse_lammps_log(path: Path) -> list[LammpsThermoPoint]:
             values = [float(item) for item in columns]
         except ValueError:
             continue
+        if not all(math.isfinite(value) for value in values):
+            continue
         value_map = {header.lower(): value for header, value in zip(headers, values)}
         if "step" not in value_map:
             continue
@@ -1126,16 +1128,40 @@ LAMMPS_LOG_ISSUE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"Dangerous builds", re.IGNORECASE), "检测到危险邻居表更新：建议减小时间步长或提高邻居表更新频率。"),
     (re.compile(r"Bond atoms .* missing", re.IGNORECASE), "检测到缺失键原子：通常是结构失稳或步长过大。"),
     (re.compile(r"Non-numeric pressure", re.IGNORECASE), "检测到压力数值异常：请检查势函数和原子类型映射。"),
+    (re.compile(r"\bnan\b", re.IGNORECASE), "检测到 NaN 数值：请检查初始结构近距离接触、势函数映射和时间步长。"),
 )
+
+
+def _append_unique(items: list[str], item: str) -> None:
+    if item and item not in items:
+        items.append(item)
+
+
+def _matching_log_lines(text: str, pattern: re.Pattern[str], *, limit: int) -> list[str]:
+    matches: list[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if pattern.search(stripped):
+            matches.append(_truncate_process_output(stripped, limit=500))
+            if len(matches) >= limit:
+                break
+    return matches
 
 
 def scan_lammps_log_issues(path: Path) -> list[str]:
     if not path.exists():
         return []
     text = path.read_text(encoding="utf-8", errors="replace")
-    issues = [message for pattern, message in LAMMPS_LOG_ISSUE_PATTERNS if pattern.search(text)]
-    if not issues and re.search(r"^ERROR:", text, re.MULTILINE):
-        issues.append("LAMMPS 日志包含错误，请查看 log.lammps 末尾的 ERROR 行。")
+    issues: list[str] = []
+    for pattern, message in LAMMPS_LOG_ISSUE_PATTERNS:
+        if pattern.search(text):
+            _append_unique(issues, message)
+    for line in _matching_log_lines(text, re.compile(r"^ERROR(?::|\s)", re.IGNORECASE), limit=3):
+        _append_unique(issues, f"LAMMPS ERROR: {line}")
+    for line in _matching_log_lines(text, re.compile(r"^WARNING(?::|\s)", re.IGNORECASE), limit=3):
+        _append_unique(issues, f"LAMMPS WARNING: {line}")
     return issues
 
 

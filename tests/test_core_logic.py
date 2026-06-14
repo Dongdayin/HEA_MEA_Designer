@@ -287,6 +287,46 @@ class CoreLogicTests(unittest.TestCase):
         self.assertTrue(truncated.startswith("x" * 100))
         self.assertIn("truncated 4900 characters", truncated)
 
+    def test_lammps_log_parsing_skips_nonfinite_thermo_rows(self) -> None:
+        log_text = "\n".join(
+            [
+                "Step Temp E_pair E_mol TotEng Press",
+                "0 300 0 0 -10 1",
+                "100 nan 0 0 -9 2",
+                "200 320 0 0 -8 3",
+                "Loop time of 1 on 1 procs for 200 steps",
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "log.lammps"
+            path.write_text(log_text, encoding="utf-8")
+
+            points = app.parse_lammps_log(path)
+
+        self.assertEqual([point.step for point in points], [0, 200])
+        self.assertEqual([point.temperature for point in points], [300.0, 320.0])
+
+    def test_lammps_log_issue_scan_includes_actionable_raw_lines(self) -> None:
+        log_text = "\n".join(
+            [
+                "WARNING: Dangerous builds = 2",
+                "ERROR: Lost atoms: original 100 current 98",
+                "Last command: run 1000",
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "log.lammps"
+            path.write_text(log_text, encoding="utf-8")
+
+            issues = app.scan_lammps_log_issues(path)
+
+        joined = "\n".join(issues)
+        self.assertIn("危险邻居表", joined)
+        self.assertIn("LAMMPS ERROR: ERROR: Lost atoms", joined)
+        self.assertIn("LAMMPS WARNING: WARNING: Dangerous builds", joined)
+
 
 if __name__ == "__main__":
     unittest.main()
