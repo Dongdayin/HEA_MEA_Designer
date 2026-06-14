@@ -1,0 +1,252 @@
+# ============================================================
+# 合金体系拉伸模拟模板（LAMMPS）
+# 适用场景：周期性体相 / 周期性晶胞的单轴拉伸
+# 脚本目标：通常只需要修改原子结构数据文件、力场模块文件，以及可选的拉伸方向
+# 输出内容：log 日志、轨迹文件、应力-应变表、周期性状态数据、restart 断点文件
+# 单位体系：metal（时间 ps、长度 Angstrom、压力 bar）
+# ============================================================
+
+clear
+units           metal
+dimension       3
+boundary        p p p
+atom_style      atomic
+atom_modify     map array
+newton          on
+
+# ----------------【通常只需修改这三行】----------------
+# datafile      = 读取的原子结构数据文件
+# ffmodule      = 力场模块文件，内部定义 pair_style / pair_coeff
+# stretchDir    = 拉伸方向，可选 x / y / z，控制单轴拉伸轴向
+variable datafile    string  final_HEA.data
+variable ffmodule    string  ff_eam_alloy.in
+variable stretchDir  string  y
+# ----------------------------------------------------------------
+
+# ---------------- 作业与输出前缀 ----------------
+# prefix        = 所有输出文件的统一前缀，便于区分不同工况或不同样品
+variable prefix      string  tensile
+
+# ---------------- 基础模拟参数 ----------------
+# T             = 目标温度，单位 K；用于速度初始化和 NPT 平衡
+variable T           equal   300.0          # K
+# P             = 目标压强，单位 bar；横向 NPT 以及前期平衡都使用它
+variable P           equal   0.0            # bar
+# dt            = 时间步长，单位 ps；在 metal 单位下 0.001 ps = 1 fs
+variable dt          equal   0.001          # metal 单位下 0.001 ps = 1 fs
+# seed          = 随机数种子，用于初速度初始化
+variable seed        equal   4928459
+
+# thermoN      = thermo 输出间隔（步），控制屏幕和 log 的打印频率
+variable thermoN     equal   100
+# dumpN        = 轨迹输出间隔（步），控制 lammpstrj 的写出频率
+variable dumpN       equal   1000
+# dataN        = 张拉阶段周期性 write_data 输出间隔（步），用于保存中间构型
+variable dataN       equal   5000
+# rstN         = restart 输出间隔（步），用于断点续跑
+variable rstN        equal   10000
+
+# miniter      = 能量最小化的最大迭代次数
+variable miniter     equal   10000
+# mineval      = 能量最小化的最大力评估次数
+variable mineval     equal   100000
+# eqN          = NPT 平衡阶段步数
+variable eqN         equal   20000          # NPT 平衡步数
+
+# Tdamp        = 温度阻尼时间常数，单位 ps
+variable Tdamp       equal   0.1            # ps
+# Pdamp        = 压强阻尼时间常数，单位 ps
+variable Pdamp       equal   1.0            # ps
+
+# 工程应变速率说明：1.0e-4 /ps = 1.0e8 /s
+# srate        = 工程应变速率，单位 1/ps
+variable srate       equal   1.0e-4
+# maxStrain    = 最大工程应变
+variable maxStrain   equal   0.20
+# ndef         = 张拉总步数，由 maxStrain / (srate * dt) 自动计算
+variable ndef        equal   ceil(v_maxStrain/(v_srate*v_dt))
+
+# ---------------- 系统装载 ----------------
+# read_data 读取初始结构；include 导入力场模块；neighbor/neigh_modify 设置邻居表
+read_data       ${datafile}
+include         ${ffmodule}
+
+neighbor        2.0 bin
+neigh_modify    every 1 delay 0 check yes
+
+timestep        ${dt}
+
+# ---------------- 原子级 / 全局量计算 ----------------
+# c_peatom = 每原子势能；c_keatom = 每原子动能
+compute         c_peatom    all pe/atom
+compute         c_keatom    all ke/atom
+# c_stress = 每原子 virial 应力，单位为“压力 × 体积”
+compute         c_stress    all stress/atom NULL virial
+# c_stsum = 对每原子应力分量求和，用来重构全局 virial 应力
+compute         c_stsum     all reduce sum c_c_stress[1] c_c_stress[2] c_c_stress[3] c_c_stress[4] c_c_stress[5] c_c_stress[6]
+
+# ---------------- 热力学输出（最小化 + 平衡阶段） ----------------
+# thermo = 每 thermoN 步输出一次全局热力学信息
+# thermo_style = 指定要输出的物理量，包括温度、能量、应力、盒长和体积
+# thermo_modify flush yes = 立即刷新输出，避免长时间运行时缓冲太久
+thermo          ${thermoN}
+thermo_style    custom step temp pe ke etotal press pxx pyy pzz lx ly lz vol
+thermo_modify   flush yes
+
+# ============================================================
+# 阶段 1：能量最小化
+# 作用：在动力学模拟前先消除不合理的原子重叠和高应力，得到更稳定的初始结构
+# ============================================================
+reset_timestep  0
+min_style       cg
+minimize        1.0e-12 1.0e-12 ${miniter} ${mineval}
+write_data      ${prefix}_min.data nocoeff
+
+# ============================================================
+# 阶段 2：NPT 平衡
+# 作用：在目标温度和零压条件下让晶胞充分弛豫，得到后续拉伸的参考盒子尺寸
+# ============================================================
+velocity        all create ${T} ${seed} mom yes rot no dist gaussian
+fix             f_eq all npt temp ${T} ${T} ${Tdamp} iso ${P} ${P} ${Pdamp}
+run             ${eqN}
+unfix           f_eq
+write_data      ${prefix}_eq.data nocoeff
+
+# 平衡结束后记录参考盒长，后续工程应变都以这里为基准
+run             0
+variable        Lx0 equal $(lx)
+variable        Ly0 equal $(ly)
+variable        Lz0 equal $(lz)
+
+# 以平衡态晶胞长度定义工程应变 ex/ey/ez
+variable        ex equal (lx-v_Lx0)/v_Lx0
+variable        ey equal (ly-v_Ly0)/v_Ly0
+variable        ez equal (lz-v_Lz0)/v_Lz0
+
+# 从全局压力张量得到主应力，bar 转 GPa，并把拉伸方向的拉应力记为正值
+variable        sxxG equal -pxx*1.0e-4
+variable        syyG equal -pyy*1.0e-4
+variable        szzG equal -pzz*1.0e-4
+
+# 用每原子的 virial 应力重构全局应力，作为与压力张量输出的对照校验
+variable        sxxV equal -(c_c_stsum[1]/vol)*1.0e-4
+variable        syyV equal -(c_c_stsum[2]/vol)*1.0e-4
+variable        szzV equal -(c_c_stsum[3]/vol)*1.0e-4
+variable        sxyV equal -(c_c_stsum[4]/vol)*1.0e-4
+variable        sxzV equal -(c_c_stsum[5]/vol)*1.0e-4
+variable        syzV equal -(c_c_stsum[6]/vol)*1.0e-4
+
+# 拉伸方向选择：修改 stretchDir 为 x / y / z 即可切换整套拉伸轴向
+# 这里同时定义：
+# 1) loadDim   = 实际施加拉伸的方向
+# 2) baroDim1/2 = 需要保持零压的两个横向方向
+# 3) L0        = 当前拉伸轴对应的参考长度
+# 4) strainAct = 当前拉伸轴的工程应变
+# 5) stressActG/V = 当前拉伸轴的全局应力和 virial 应力
+if "${stretchDir} != x && ${stretchDir} != y && ${stretchDir} != z" then "print 'ERROR: stretchDir must be x, y, or z'"
+if "${stretchDir} != x && ${stretchDir} != y && ${stretchDir} != z" then "quit"
+
+if "${stretchDir} == x" then "variable loadDim string x"
+if "${stretchDir} == x" then "variable baroDim1 string y"
+if "${stretchDir} == x" then "variable baroDim2 string z"
+if "${stretchDir} == x" then "variable L0 equal v_Lx0"
+if "${stretchDir} == x" then "variable strainAct equal v_ex"
+if "${stretchDir} == x" then "variable stressActG equal v_sxxG"
+if "${stretchDir} == x" then "variable stressActV equal v_sxxV"
+
+if "${stretchDir} == y" then "variable loadDim string y"
+if "${stretchDir} == y" then "variable baroDim1 string x"
+if "${stretchDir} == y" then "variable baroDim2 string z"
+if "${stretchDir} == y" then "variable L0 equal v_Ly0"
+if "${stretchDir} == y" then "variable strainAct equal v_ey"
+if "${stretchDir} == y" then "variable stressActG equal v_syyG"
+if "${stretchDir} == y" then "variable stressActV equal v_syyV"
+
+if "${stretchDir} == z" then "variable loadDim string z"
+if "${stretchDir} == z" then "variable baroDim1 string x"
+if "${stretchDir} == z" then "variable baroDim2 string y"
+if "${stretchDir} == z" then "variable L0 equal v_Lz0"
+if "${stretchDir} == z" then "variable strainAct equal v_ez"
+if "${stretchDir} == z" then "variable stressActG equal v_szzG"
+if "${stretchDir} == z" then "variable stressActV equal v_szzV"
+
+# 将时间步重新归零，便于张拉阶段单独统计
+reset_timestep  0
+
+# ---------------- 张拉阶段热力学输出 ----------------
+# thermo_style 中额外输出当前拉伸轴的应变和应力，方便直接画应力-应变曲线
+thermo_style    custom step temp pe ke etotal press pxx pyy pzz lx ly lz vol &
+                                                 v_ex v_ey v_ez v_strainAct v_sxxG v_syyG v_szzG v_sxxV v_syyV v_szzV &
+                                                 v_stressActG v_stressActV
+thermo_modify   flush yes
+
+# 为 fix ave/time 准备的标量变量：把 thermo 关键词包装成可时间平均的变量
+variable        tempNow equal temp
+variable        peNow equal pe
+variable        keNow equal ke
+variable        etotNow equal etotal
+variable        pressNow equal press
+variable        pxxNow equal pxx
+variable        pyyNow equal pyy
+variable        pzzNow equal pzz
+variable        lxNow equal lx
+variable        lyNow equal ly
+variable        lzNow equal lz
+variable        volNow equal vol
+
+# ---------------- 张拉阶段输出模块 ----------------
+# 1) 逐原子轨迹：用于 OVITO 观察位错、局部屈服、颈缩、裂纹等微观演化
+#    c_c_stress[*] 是每原子 virial 应力乘体积项，后处理时可用来重构局部应力场
+#    对超大体系来说该文件可能很大，必要时可以删减列数
+dump            d_trj all custom ${dumpN} ${prefix}.lammpstrj &
+                         id type x y z xs ys zs vx vy vz fx fy fz &
+                         c_c_peatom c_c_keatom &
+                         c_c_stress[1] c_c_stress[2] c_c_stress[3] &
+                         c_c_stress[4] c_c_stress[5] c_c_stress[6]
+dump_modify     d_trj sort id
+
+# 2) 应力-应变与热力学量汇总表：用于后处理画曲线、比较温度/能量/体积演化
+fix             f_out all ave/time 1 1 ${thermoN} &
+                         v_ex v_ey v_ez &
+                         v_sxxG v_syyG v_szzG &
+                         v_sxxV v_syyV v_szzV v_sxyV v_sxzV v_syzV &
+                         v_strainAct v_stressActG v_stressActV &
+                         v_tempNow v_peNow v_keNow v_etotNow v_pressNow &
+                         v_pxxNow v_pyyNow v_pzzNow v_lxNow v_lyNow v_lzNow v_volNow &
+                         file ${prefix}_stress_strain.dat mode scalar
+
+# 3) 二进制 restart 断点：用于中途恢复计算，适合长时间拉伸任务
+restart         ${rstN} ${prefix}_*.restart
+
+# 4) 写出张拉初始态结构：保留平衡后的起点构型，便于复算和可视化
+write_data      ${prefix}_state_0.data nocoeff
+
+# ============================================================
+# 阶段 3：沿选定方向做单轴拉伸
+# 两个垂直方向由 NPT 保持零压，实现横向自由收缩；${loadDim} 方向由 fix deform 施加工程应变
+# ============================================================
+# f_baro = 横向压力控制，保持两个垂直方向接近零压
+# f_def  = 对拉伸方向施加匀速盒长变化，等价于单轴拉伸加载
+fix             f_baro all npt temp ${T} ${T} ${Tdamp} ${baroDim1} ${P} ${P} ${Pdamp} ${baroDim2} ${P} ${P} ${Pdamp} couple none
+fix             f_def  all deform 1 ${loadDim} erate ${srate} units box remap x
+
+# 每隔 dataN 步额外写出一次结构快照，方便检查中间拉伸状态
+run             ${ndef} every ${dataN} "write_data ${prefix}_state_*.data nocoeff"
+
+# ---------------- 结束与清理 ----------------
+# 先解除拉伸相关 fix/dump，再写出最终结构和 restart
+unfix           f_def
+unfix           f_baro
+unfix           f_out
+undump          d_trj
+
+write_data      ${prefix}_final.data nocoeff
+write_restart   ${prefix}_final.restart
+
+print "============================================================"
+print "Tensile simulation completed"
+print "Reference length (${loadDim} direction) = ${L0}"
+print "Final engineering strain (${loadDim} direction) = ${strainAct}"
+print "Final tensile stress (${loadDim} direction, from pressure tensor) = ${stressActG} GPa"
+print "Final tensile virial stress (${loadDim} direction) = ${stressActV} GPa"
+print "============================================================"

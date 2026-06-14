@@ -1,0 +1,9 @@
+&myList
+length = 500.d0
+gNumber = 2
+del = 1
+layer = 5
+isAtom = .true.
+Period = .true.
+cFactor = 0.01d0
+/

@@ -1,0 +1,9 @@
+{
+  "workspace_dir": "generated",
+  "lammps_executable": "",
+  "lammps_core_count": "8",
+  "lammps_use_gpu": "false",
+  "inherit_previous": "true",
+  "last_modeling_mode": "polycrystal",
+  "last_scenario": "NVT Relaxation"
+}

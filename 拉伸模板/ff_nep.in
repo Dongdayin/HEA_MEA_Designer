@@ -1,0 +1,5 @@
+# Example force-field module for NEP in LAMMPS
+# If your LAMMPS build supports pair_style nep, you can use this module.
+
+pair_style      nep
+pair_coeff      * * YOUR_NEP_MODEL_FILE.txt
