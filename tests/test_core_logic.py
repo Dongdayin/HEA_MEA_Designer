@@ -68,6 +68,22 @@ class CoreLogicTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             app.largest_remainder_counts([1.0, float("nan")], 10)
 
+    def test_strict_numeric_parsers_reject_silent_truncation_and_nonfinite_values(self) -> None:
+        self.assertEqual(app.parse_positive_int("2000", "步数"), 2000)
+        self.assertEqual(app.parse_positive_int("", "弛豫步数", default=2000), 2000)
+        self.assertAlmostEqual(app.parse_positive_float("0.001", "步长"), 0.001)
+        self.assertIsNone(app.parse_optional_float_value("", "压力"))
+        self.assertEqual(app.parse_optional_float_value("-1.5", "压力"), -1.5)
+
+        with self.assertRaises(ValueError):
+            app.parse_positive_int("1.5", "步数")
+        with self.assertRaises(ValueError):
+            app.parse_positive_int("0", "步数")
+        with self.assertRaises(ValueError):
+            app.parse_positive_float("nan", "温度")
+        with self.assertRaises(ValueError):
+            app.parse_positive_float("0", "步长")
+
     def test_region_selection_uses_box_geometry(self) -> None:
         structure = make_structure()
 

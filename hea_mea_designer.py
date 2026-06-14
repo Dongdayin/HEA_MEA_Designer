@@ -1873,10 +1873,37 @@ def parse_float(text: str, label: str) -> float:
 
 
 def parse_int(text: str, label: str) -> int:
+    stripped = text.strip()
+    if not re.fullmatch(r"[-+]?\d+", stripped):
+        raise ValueError(f"{label} 不是有效整数")
     try:
-        return int(text)
+        return int(stripped)
     except ValueError as exc:
         raise ValueError(f"{label} 不是有效整数") from exc
+
+
+def parse_positive_float(text: str, label: str) -> float:
+    value = parse_float(text, label)
+    if value <= 0:
+        raise ValueError(f"{label} 必须大于 0")
+    return value
+
+
+def parse_optional_float_value(text: str, label: str) -> float | None:
+    stripped = text.strip()
+    if not stripped:
+        return None
+    return parse_float(stripped, label)
+
+
+def parse_positive_int(text: str, label: str, *, default: int | None = None) -> int:
+    stripped = text.strip()
+    if not stripped and default is not None:
+        return default
+    value = parse_int(stripped, label)
+    if value <= 0:
+        raise ValueError(f"{label} 必须大于 0")
+    return value
 
 
 def parse_optional_float(text: str) -> float | None:
@@ -4495,30 +4522,12 @@ class AlloyDesignerApp(tk.Tk):
         if not element_list:
             raise ValueError("请输入至少一个元素符号")
 
-        def parse_float(text: str, label: str, *, allow_blank: bool = False) -> float | None:
-            value = text.strip()
-            if not value:
-                if allow_blank:
-                    return None
-                raise ValueError(f"请输入 {label}")
-            try:
-                return float(value)
-            except ValueError as exc:
-                raise ValueError(f"{label} 必须是数字") from exc
-
-        def parse_int(text: str, label: str, *, default: int | None = None) -> int:
-            value = text.strip()
-            if not value:
-                if default is not None:
-                    return default
-                raise ValueError(f"请输入 {label}")
-            try:
-                return int(float(value))
-            except ValueError as exc:
-                raise ValueError(f"{label} 必须是整数") from exc
-
-        timestep = parse_float(self.lammps_timestep_var.get(), "步长")
-        temperature = parse_float(self.lammps_temperature_var.get(), "温度")
+        timestep = parse_positive_float(self.lammps_timestep_var.get(), "步长")
+        temperature = parse_positive_float(self.lammps_temperature_var.get(), "温度")
+        final_temperature = parse_optional_float_value(self.lammps_final_temperature_var.get(), "终止温度")
+        if final_temperature is not None and final_temperature <= 0:
+            raise ValueError("终止温度必须大于 0")
+        pressure = parse_optional_float_value(self.lammps_pressure_var.get(), "压力")
         force_field = self.lammps_force_field_var.get().strip() or "lj/cut"
         potential_kind = self.input_generator._potential_kind(potential_file)
         if potential_kind in {"meam", "meam/ms"} and force_field.lower() in {"lj", "lj/cut", "eam", "eam/alloy", "eam/fs", "eam/he", "eam/cd", "eam/cd/old", "meam", "meam/c", "meam/ms"}:
@@ -4543,12 +4552,12 @@ class AlloyDesignerApp(tk.Tk):
             scenario=scenario,
             data_file=data_file,
             output_dir=output_dir,
-            timestep=timestep if timestep is not None else 0.001,
-            run_steps=parse_int(self.lammps_steps_var.get(), "步数"),
-            temperature=temperature if temperature is not None else 300.0,
-            final_temperature=parse_float(self.lammps_final_temperature_var.get(), "终止温度", allow_blank=True),
-            pressure=parse_float(self.lammps_pressure_var.get(), "压力", allow_blank=True),
-            relax_steps=parse_int(self.lammps_relax_steps_var.get(), "弛豫步数", default=2000),
+            timestep=timestep,
+            run_steps=parse_positive_int(self.lammps_steps_var.get(), "步数"),
+            temperature=temperature,
+            final_temperature=final_temperature,
+            pressure=pressure,
+            relax_steps=parse_positive_int(self.lammps_relax_steps_var.get(), "弛豫步数", default=2000),
             ensemble=self.lammps_ensemble_var.get().strip() or "nvt",
             force_field=force_field,
             potential_file=potential_file,
@@ -4560,8 +4569,8 @@ class AlloyDesignerApp(tk.Tk):
             pair_style_override=self.lammps_pair_style_override_var.get().strip(),
             pair_coeff_override=self.lammps_pair_coeff_override_var.get().strip(),
             custom_template=self._get_lammps_template_text(),
-            thermo_every=parse_int(self.lammps_thermo_every_var.get(), "热输出间隔", default=100),
-            dump_every=parse_int(self.lammps_dump_every_var.get(), "轨迹输出间隔", default=100),
+            thermo_every=parse_positive_int(self.lammps_thermo_every_var.get(), "热输出间隔", default=100),
+            dump_every=parse_positive_int(self.lammps_dump_every_var.get(), "轨迹输出间隔", default=100),
             production_data_file=output_dir / "md" / "production.data",
             trajectory_file=output_dir / "md" / "trajectory.lammpstrj",
             restart_file=output_dir / "md" / "production.restart",
