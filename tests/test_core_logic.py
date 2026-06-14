@@ -1,4 +1,5 @@
 import tempfile
+import sys
 import unittest
 from pathlib import Path
 
@@ -222,6 +223,31 @@ class CoreLogicTests(unittest.TestCase):
                     atom_types_count=1,
                     type_assignments=[1, 1, 2],
                 )
+
+    def test_run_command_failure_includes_diagnostic_context(self) -> None:
+        command = [
+            sys.executable,
+            "-c",
+            "import sys; print('command stdout'); print('command stderr', file=sys.stderr); raise SystemExit(7)",
+        ]
+
+        with self.assertRaises(RuntimeError) as raised:
+            app.run_command(command, cwd=Path.cwd())
+
+        message = str(raised.exception)
+        self.assertIn("退出码 7", message)
+        self.assertIn("命令:", message)
+        self.assertIn("工作目录:", message)
+        self.assertIn("stdout:", message)
+        self.assertIn("command stdout", message)
+        self.assertIn("stderr:", message)
+        self.assertIn("command stderr", message)
+
+    def test_process_output_truncation_keeps_message_bounded(self) -> None:
+        truncated = app._truncate_process_output("x" * 5000, limit=100)
+
+        self.assertTrue(truncated.startswith("x" * 100))
+        self.assertIn("truncated 4900 characters", truncated)
 
 
 if __name__ == "__main__":

@@ -3152,10 +3152,36 @@ def build_parallel_env(worker_count: int | None) -> dict[str, str]:
     return env
 
 
+def _truncate_process_output(text: str, *, limit: int = 4000) -> str:
+    if len(text) <= limit:
+        return text
+    omitted = len(text) - limit
+    return f"{text[:limit]}\n... <truncated {omitted} characters>"
+
+
+def format_command_failure(command: list[str], result: subprocess.CompletedProcess[str], cwd: Path | None = None) -> str:
+    command_text = subprocess.list2cmdline([str(part) for part in command])
+    lines = [
+        f"命令执行失败，退出码 {result.returncode}",
+        f"命令: {command_text}",
+    ]
+    if cwd is not None:
+        lines.append(f"工作目录: {cwd}")
+    stdout = (result.stdout or "").strip()
+    stderr = (result.stderr or "").strip()
+    if stdout:
+        lines.append("stdout:")
+        lines.append(_truncate_process_output(stdout))
+    if stderr:
+        lines.append("stderr:")
+        lines.append(_truncate_process_output(stderr))
+    return "\n".join(lines)
+
+
 def run_command(command: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError((result.stdout or "") + ("\n" if result.stdout and result.stderr else "") + (result.stderr or ""))
+        raise RuntimeError(format_command_failure(command, result, cwd))
     return result
 
 
@@ -5822,11 +5848,13 @@ class AlloyDesignerApp(tk.Tk):
             base_output = WORK_DIR / "simple_polycrystal" / "base.lmp"
             final_output = WORK_DIR / "simple_polycrystal" / "final.lmp"
             seeds, grid, cells, grain_scale = generate_uniform_polycrystal(config.atomsk_path, config, base_output, env=self._subprocess_env())
+            self._invalidate_structure_cache()
             if self.inherit_previous_var.get():
                 result = self._assign_alloy(base_output, final_output)
                 final_path = result.final_path
             else:
                 shutil.copyfile(base_output, final_output)
+                self._invalidate_structure_cache()
                 final_path = final_output
             self.source_path_var.set(str(final_path))
             self.lammps_data_file_var.set(str(final_path))
@@ -5952,11 +5980,13 @@ class AlloyDesignerApp(tk.Tk):
             structure, particles, box = build_nanopowder_structure(config)
             base_output.parent.mkdir(parents=True, exist_ok=True)
             write_lammps_structure(base_output, structure, structure.atoms, atom_types_count=1)
+            self._invalidate_structure_cache()
             if self.inherit_previous_var.get():
                 result = self._assign_alloy(base_output, final_output)
                 final_path = result.final_path
             else:
                 write_lammps_structure(final_output, structure, structure.atoms, atom_types_count=1)
+                self._invalidate_structure_cache()
                 final_path = final_output
             self.source_path_var.set(str(final_path))
             self.lammps_data_file_var.set(str(final_path))
@@ -6084,11 +6114,13 @@ class AlloyDesignerApp(tk.Tk):
             structure, summary, box = build_single_crystal_structure(config)
             base_output.parent.mkdir(parents=True, exist_ok=True)
             write_lammps_structure(base_output, structure, structure.atoms, atom_types_count=1)
+            self._invalidate_structure_cache()
             if self.inherit_previous_var.get():
                 result = self._assign_alloy(base_output, final_output)
                 final_path = result.final_path
             else:
                 write_lammps_structure(final_output, structure, structure.atoms, atom_types_count=1)
+                self._invalidate_structure_cache()
                 final_path = final_output
             self.source_path_var.set(str(final_path))
             self.lammps_data_file_var.set(str(final_path))
@@ -7005,6 +7037,10 @@ class AlloyDesignerApp(tk.Tk):
         directory.mkdir(parents=True, exist_ok=True)
         subprocess.Popen(["explorer", str(directory)], shell=False)
 
+    def _invalidate_structure_cache(self) -> None:
+        self._structure_cache_key = None
+        self._structure_cache_value = None
+
     def _structure_for_path(self, source_path: Path) -> tuple[LammpsStructure, Path]:
         if not source_path.exists():
             raise FileNotFoundError(f"找不到源文件: {source_path}")
@@ -7120,6 +7156,7 @@ class AlloyDesignerApp(tk.Tk):
                 if details:
                     message = f"{message}\nAtomsk 输出:\n{details}"
                 raise RuntimeError(message)
+        self._invalidate_structure_cache()
         self.source_path_var.set(str(target_path))
         self._load_source_info()
         self._refresh_all()
@@ -7133,6 +7170,7 @@ class AlloyDesignerApp(tk.Tk):
             target_path.unlink()
         atom_types_count = structure.atom_types or max((atom.atom_type for atom in atoms), default=1)
         write_lammps_structure(target_path, structure, atoms, mass_entries=None, atom_types_count=atom_types_count)
+        self._invalidate_structure_cache()
         return target_path, removed, description
 
     def _entries_for_final_write(self) -> list[CompositionEntry]:
@@ -7178,6 +7216,7 @@ class AlloyDesignerApp(tk.Tk):
             type_assignments=assignments,
             box_override=box_override,
         )
+        self._invalidate_structure_cache()
         for message in doping_logs:
             self._log(message)
         return PipelineResult(source_path=source_path, final_path=target_path, atom_count=len(atoms), atom_types=len(mass_entries), removed_atoms=removed_close_contacts)
