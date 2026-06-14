@@ -5,6 +5,9 @@ from pathlib import Path
 
 BASE_DIR = Path.cwd()
 datas = []
+version_file = BASE_DIR / "VERSION"
+if version_file.exists():
+    datas.append((str(version_file), "."))
 for folder_name in ["data", "docs", "models"]:
     folder = BASE_DIR / folder_name
     if folder.exists():

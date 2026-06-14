@@ -13,3 +13,15 @@
 ```bash
 python tools/verify_core.py
 ```
+
+## 2026-06-15：第 11 轮升级
+
+- 第 11 轮：建立首版分发链路。新增 `VERSION` 作为单一版本源，窗口标题和启动界面显示版本号，PyInstaller 包内携带 `VERSION`，项目级验证会检查版本文件一致性。
+- 新增 `tools/create_release.py`，用于在 `releases/` 下生成可分发 zip、SHA256 校验文件、manifest 和 release notes。
+
+当前项目级验证与分发命令：
+
+```bash
+python tools/verify_project.py
+python tools/create_release.py
+```

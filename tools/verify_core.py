@@ -12,6 +12,7 @@ SOURCE_FILES = [
     ROOT / "tests" / "test_core_logic.py",
     ROOT / "tools" / "verify_core.py",
     ROOT / "tools" / "verify_project.py",
+    ROOT / "tools" / "create_release.py",
 ]
 
 

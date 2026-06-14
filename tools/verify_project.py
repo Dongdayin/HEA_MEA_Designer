@@ -9,6 +9,14 @@ ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT / "dist" / "HEA_MEA_Designer"
 EXE_PATH = DIST_DIR / "HEA_MEA_Designer.exe"
 INTERNAL_DIR = DIST_DIR / "_internal"
+VERSION_PATH = ROOT / "VERSION"
+
+
+def read_version() -> str:
+    version = VERSION_PATH.read_text(encoding="utf-8").strip()
+    if not version:
+        raise SystemExit("[fail] VERSION is empty")
+    return version
 
 
 def require_path(path: Path, label: str) -> None:
@@ -19,7 +27,12 @@ def require_path(path: Path, label: str) -> None:
 
 def validate_packaging_rules() -> None:
     print("[packaging] checking packaging rules")
+    version = read_version()
+    print(f"  OK project version: {version}")
     spec_text = (ROOT / "HEA_MEA_Designer.spec").read_text(encoding="utf-8")
+    if "VERSION" not in spec_text:
+        raise SystemExit("[fail] HEA_MEA_Designer.spec does not include VERSION")
+    print("  OK spec includes VERSION")
     for folder_name in ("data", "docs", "models"):
         if f'"{folder_name}"' not in spec_text:
             raise SystemExit(f"[fail] HEA_MEA_Designer.spec does not include {folder_name}/")
@@ -42,6 +55,11 @@ def validate_dist_layout() -> None:
     require_path(INTERNAL_DIR / "docs" / "verification.md", "packaged verification doc")
     require_path(INTERNAL_DIR / "docs" / "iteration_log.md", "packaged iteration log")
     require_path(INTERNAL_DIR / "models", "packaged model library")
+    require_path(INTERNAL_DIR / "VERSION", "packaged version file")
+    packaged_version = (INTERNAL_DIR / "VERSION").read_text(encoding="utf-8").strip()
+    if packaged_version != read_version():
+        raise SystemExit(f"[fail] packaged VERSION mismatch: {packaged_version!r}")
+    print(f"  OK packaged version: {packaged_version}")
     require_path(DIST_DIR / "config.json", "runtime config")
     require_path(DIST_DIR / "generated", "generated runtime directory")
     generated_files = [path for path in (DIST_DIR / "generated").rglob("*") if path.is_file()]

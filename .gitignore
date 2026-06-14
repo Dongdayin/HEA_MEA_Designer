@@ -14,6 +14,7 @@ config.json
 # Build and packaging output
 build/
 dist/
+releases/
 *.egg-info/
 *.spec.bak
 

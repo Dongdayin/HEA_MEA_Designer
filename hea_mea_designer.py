@@ -56,6 +56,21 @@ def first_existing_path(*candidates: Path) -> Path:
     return candidates[-1]
 
 
+def read_app_version() -> str:
+    for candidate in (PACKAGE_INTERNAL_ROOT / "VERSION", ROOT / "VERSION"):
+        try:
+            text = candidate.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            return text
+    return "0+unknown"
+
+
+APP_VERSION = read_app_version()
+APP_TITLE = f"DDOJY 高/中熵合金设计器 v{APP_VERSION}"
+
+
 def data_resource_path(*parts: str) -> Path:
     relative = Path(*parts)
     return first_existing_path(PACKAGE_INTERNAL_ROOT / "data" / relative, PACKAGE_DATA_ROOT / relative, ROOT / relative)
@@ -1170,7 +1185,7 @@ class WorkspaceDialog(tk.Toplevel):
         super().__init__(parent)
         self.result: AppSettings | None = None
         self._initial_settings = initial
-        self.title("DDOJY 启动设置")
+        self.title(f"DDOJY 启动设置 v{APP_VERSION}")
         self.configure(bg=BACKGROUND)
         self.resizable(False, False)
         self.workspace_var = tk.StringVar(value=str(initial.workspace_dir))
@@ -1178,7 +1193,7 @@ class WorkspaceDialog(tk.Toplevel):
 
         main = ttk.Frame(self, style="App.TFrame", padding=18)
         main.pack(fill="both", expand=True)
-        tk.Label(main, text="DDOJY", bg=BACKGROUND, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 22, "bold")).pack(anchor="w")
+        tk.Label(main, text=f"DDOJY v{APP_VERSION}", bg=BACKGROUND, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 22, "bold")).pack(anchor="w")
         tk.Label(main, text="启动时请确认工作目录和 LAMMPS 可执行文件。", bg=BACKGROUND, fg=MUTED, font=("Microsoft YaHei UI", 10)).pack(anchor="w", pady=(2, 12))
 
         form = ttk.LabelFrame(main, text="工作目录与运行环境", style="Section.TLabelframe", padding=12)
@@ -3584,7 +3599,7 @@ ELEMENT_SYMBOLS = sorted(ELEMENT_MASSES.keys())
 class AlloyDesignerApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("DDOJY 高/中熵合金设计器")
+        self.title(APP_TITLE)
         self.geometry("1360x920")
         self.minsize(1240, 860)
         self.configure(bg=BACKGROUND)
@@ -5080,7 +5095,7 @@ class AlloyDesignerApp(tk.Tk):
 
     def _show_splash_screen(self) -> tk.Toplevel:
         splash = tk.Toplevel(self)
-        splash.title("DDOJY")
+        splash.title(f"DDOJY v{APP_VERSION}")
         splash.configure(bg=BACKGROUND)
         splash.overrideredirect(True)
         splash.geometry("420x220")
@@ -5092,7 +5107,7 @@ class AlloyDesignerApp(tk.Tk):
         splash.geometry(f"420x220+{x}+{y}")
         frame = ttk.Frame(splash, style="App.TFrame", padding=24)
         frame.pack(fill="both", expand=True)
-        tk.Label(frame, text="DDOJY", bg=BACKGROUND, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 26, "bold")).pack(anchor="center", pady=(18, 6))
+        tk.Label(frame, text=f"DDOJY v{APP_VERSION}", bg=BACKGROUND, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 26, "bold")).pack(anchor="center", pady=(18, 6))
         tk.Label(frame, text="高熵合金建模与 LAMMPS 模拟集成平台", bg=BACKGROUND, fg=TEXT, font=("Microsoft YaHei UI", 11)).pack(anchor="center")
         tk.Label(frame, text=f"工作目录: {self._app_settings.workspace_dir}", bg=BACKGROUND, fg=MUTED, font=("Microsoft YaHei UI", 9), wraplength=360, justify="center").pack(anchor="center", pady=(14, 0))
         tk.Label(frame, text="正在初始化界面与工作流...", bg=BACKGROUND, fg=MUTED, font=("Microsoft YaHei UI", 9)).pack(anchor="center", pady=(8, 0))
