@@ -218,6 +218,16 @@ class CoreLogicTests(unittest.TestCase):
                 ]
             )
 
+    def test_parse_atom_line_keeps_atomic_format_strict(self) -> None:
+        atom = app.parse_atom_line("10 2 1.0 2.0 3.0 # atom comment", 1)
+
+        self.assertEqual(atom, app.AtomRecord(atom_id=10, atom_type=2, x=1.0, y=2.0, z=3.0))
+        self.assertIsNone(app.parse_atom_line("# comment", 2))
+        with self.assertRaises(ValueError):
+            app.parse_atom_line("1 1 0.0 0.0 0.0 99.0", 3)
+        with self.assertRaises(ValueError):
+            app.parse_atom_line("1 1 inf 0.0 0.0", 4)
+
     def test_write_lammps_structure_rejects_inconsistent_type_assignments(self) -> None:
         structure = make_structure()
 

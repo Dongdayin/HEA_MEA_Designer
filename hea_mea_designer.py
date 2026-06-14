@@ -1814,9 +1814,6 @@ class PipelineResult:
     removed_atoms: int
 
 
-ATOM_LINE_RE = re.compile(
-    r"^\s*(\d+)\s+(\d+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s*(?:#.*)?$"
-)
 COUNT_RE = re.compile(r"^\s*(\d+)\s+atoms?\s*(?:#.*)?$", re.IGNORECASE)
 TYPE_RE = re.compile(r"^\s*(\d+)\s+atom types?\s*(?:#.*)?$", re.IGNORECASE)
 BOX_RE = re.compile(
@@ -2074,33 +2071,36 @@ def split_atoms_section(lines: list[str], atoms_index: int) -> tuple[list[str], 
     return atom_lines, lines[index:]
 
 
+def parse_atom_line(line: str, line_number: int) -> AtomRecord | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return None
+    content = line.split("#", 1)[0].strip()
+    fields = content.split()
+    if len(fields) != 5:
+        raise ValueError(f"当前程序只支持 id type x y z 格式的 Atoms 段；第 {line_number} 行无法解析")
+    try:
+        atom_id = int(fields[0])
+        atom_type = int(fields[1])
+        x = float(fields[2])
+        y = float(fields[3])
+        z = float(fields[4])
+    except ValueError as exc:
+        raise ValueError(f"当前程序只支持 id type x y z 格式的 Atoms 段；第 {line_number} 行无法解析") from exc
+    if atom_id <= 0 or atom_type <= 0:
+        raise ValueError(f"Atoms 段第 {line_number} 行的 id 和 type 必须为正整数")
+    if not all(math.isfinite(value) for value in (x, y, z)):
+        raise ValueError(f"Atoms 段第 {line_number} 行坐标不能包含无穷或 NaN")
+    return AtomRecord(atom_id=atom_id, atom_type=atom_type, x=x, y=y, z=z)
+
+
 def parse_atom_lines(atom_lines: list[str]) -> list[AtomRecord]:
     atoms: list[AtomRecord] = []
     for line_number, line in enumerate(atom_lines, start=1):
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
+        atom = parse_atom_line(line, line_number)
+        if atom is None:
             continue
-        match = ATOM_LINE_RE.match(line)
-        if not match:
-            raise ValueError(f"当前程序只支持 id type x y z 格式的 Atoms 段；第 {line_number} 行无法解析")
-        atom_id = int(match.group(1))
-        atom_type = int(match.group(2))
-        x = float(match.group(3))
-        y = float(match.group(4))
-        z = float(match.group(5))
-        if atom_id <= 0 or atom_type <= 0:
-            raise ValueError(f"Atoms 段第 {line_number} 行的 id 和 type 必须为正整数")
-        if not all(math.isfinite(value) for value in (x, y, z)):
-            raise ValueError(f"Atoms 段第 {line_number} 行坐标不能包含无穷或 NaN")
-        atoms.append(
-            AtomRecord(
-                atom_id=atom_id,
-                atom_type=atom_type,
-                x=x,
-                y=y,
-                z=z,
-            )
-        )
+        atoms.append(atom)
     if not atoms:
         raise ValueError("没有读取到任何原子坐标")
     return atoms
