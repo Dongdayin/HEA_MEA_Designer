@@ -30,3 +30,8 @@ python tools/create_release.py
 
 - 第 12 轮：发布包去本机化。`tools/create_release.py` 会用 `config.example.json` 替换 zip 内的本机 `config.json`，避免分发包带出本机工作目录和 LAMMPS 绝对路径。
 - 相对工作目录现在按程序根目录解析，默认 `generated` 会稳定落在软件目录内；新增单元测试覆盖该行为。
+
+## 2026-06-15：第 13 轮升级
+
+- 第 13 轮：专业化 GUI 外观。将单一浅蓝主题升级为中性科研工作台配色，重做主标题栏、启动页、工作台首页、状态卡片和快速入口卡片。
+- 窗口、启动弹窗和发布包版本同步推进到 `1.1.0`；Matplotlib 图表配置 Windows 中文字体，避免热力学结果图标题缺字。

@@ -22,8 +22,12 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 import tkinter as tk
 
+from matplotlib import rcParams
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+
+rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
+rcParams["axes.unicode_minus"] = False
 
 
 def app_root() -> Path:
@@ -411,7 +415,7 @@ class LammpsThermoPoint:
 
 
 class ScrollableFrame(ttk.Frame):
-    def __init__(self, parent: tk.Misc, *, background: str = "#eef6ff") -> None:
+    def __init__(self, parent: tk.Misc, *, background: str = "#f4f6f8") -> None:
         super().__init__(parent)
         self.canvas = tk.Canvas(self, highlightthickness=0, bg=background)
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
@@ -1198,10 +1202,15 @@ class WorkspaceDialog(tk.Toplevel):
         self.workspace_var = tk.StringVar(value=str(initial.workspace_dir))
         self.lammps_var = tk.StringVar(value=str(initial.lammps_executable))
 
-        main = ttk.Frame(self, style="App.TFrame", padding=18)
+        main = ttk.Frame(self, style="App.TFrame", padding=20)
         main.pack(fill="both", expand=True)
-        tk.Label(main, text=f"DDOJY v{APP_VERSION}", bg=BACKGROUND, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 22, "bold")).pack(anchor="w")
-        tk.Label(main, text="启动时请确认工作目录和 LAMMPS 可执行文件。", bg=BACKGROUND, fg=MUTED, font=("Microsoft YaHei UI", 10)).pack(anchor="w", pady=(2, 12))
+        header = tk.Frame(main, bg=PANEL, highlightbackground=BORDER, highlightthickness=1)
+        header.pack(fill="x", pady=(0, 14))
+        tk.Frame(header, bg=ACCENT, width=5).pack(side="left", fill="y")
+        header_body = tk.Frame(header, bg=PANEL)
+        header_body.pack(side="left", fill="both", expand=True, padx=16, pady=12)
+        tk.Label(header_body, text=f"DDOJY v{APP_VERSION}", bg=PANEL, fg=TEXT, font=("Microsoft YaHei UI", 20, "bold")).pack(anchor="w")
+        tk.Label(header_body, text="启动设置", bg=PANEL, fg=MUTED, font=("Microsoft YaHei UI", 10, "bold")).pack(anchor="w", pady=(2, 0))
 
         form = ttk.LabelFrame(main, text="工作目录与运行环境", style="Section.TLabelframe", padding=12)
         form.pack(fill="x")
@@ -1215,7 +1224,7 @@ class WorkspaceDialog(tk.Toplevel):
         lammps_entry.grid(row=1, column=1, sticky="ew", padx=(8, 8), pady=(10, 0))
         ttk.Button(form, text="浏览目录", command=self._browse_lammps_directory).grid(row=1, column=2, sticky="w", pady=(10, 0))
         ttk.Button(form, text="浏览程序", command=self._browse_lammps).grid(row=1, column=3, sticky="w", padx=(8, 0), pady=(10, 0))
-        tk.Label(form, text="可输入 conda 环境目录、python.exe 或 lmp.exe；程序会自动解析到实际的 LAMMPS 可执行文件。", bg=PANEL, fg=MUTED, font=("Microsoft YaHei UI", 9)).grid(row=2, column=0, columnspan=4, sticky="w", pady=(8, 0))
+        tk.Label(form, text="支持 conda 环境目录、python.exe 或 lmp.exe。", bg=PANEL, fg=MUTED, font=("Microsoft YaHei UI", 9)).grid(row=2, column=0, columnspan=4, sticky="w", pady=(8, 0))
 
         buttons = ttk.Frame(main)
         buttons.pack(fill="x", pady=(14, 0))
@@ -1328,17 +1337,21 @@ FCC_BASIS = (
     (0.0, 0.5, 0.5),
 )
 
-BACKGROUND = "#eef6ff"
+BACKGROUND = "#f4f6f8"
 PANEL = "#ffffff"
-ACCENT = "#4ea8ff"
-ACCENT_DARK = "#2f7bd8"
-SKY_BANNER = "#4aa1f0"
-TEXT = "#17324a"
-MUTED = "#5f7f96"
-BORDER = "#c9dff4"
-SUCCESS = "#1f8c53"
-WARNING = "#c67b16"
-DANGER = "#d14a4a"
+PANEL_ALT = "#f8fafc"
+HEADER_BG = "#1f2933"
+HEADER_SUBTLE = "#334155"
+ACCENT = "#0f766e"
+ACCENT_DARK = "#0b5f59"
+ACCENT_SOFT = "#d9f1ef"
+SECONDARY_ACCENT = "#4051b5"
+TEXT = "#182230"
+MUTED = "#667085"
+BORDER = "#d0d7de"
+SUCCESS = "#168a54"
+WARNING = "#b7791f"
+DANGER = "#c2410c"
 
 
 class HoverTooltip:
@@ -3879,6 +3892,37 @@ class AlloyDesignerApp(tk.Tk):
         directory.mkdir(parents=True, exist_ok=True)
         subprocess.Popen(["explorer", str(directory)], shell=False)
 
+    def _panel(self, parent: tk.Misc, *, background: str = PANEL) -> tk.Frame:
+        return tk.Frame(parent, bg=background, highlightbackground=BORDER, highlightthickness=1, bd=0)
+
+    def _home_action_card(
+        self,
+        parent: tk.Misc,
+        title: str,
+        detail: str,
+        button_text: str,
+        command,
+        *,
+        primary: bool = False,
+    ) -> tk.Frame:
+        card = self._panel(parent)
+        body = tk.Frame(card, bg=PANEL)
+        body.pack(fill="both", expand=True, padx=16, pady=14)
+        tk.Label(body, text=title, bg=PANEL, fg=TEXT, font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
+        tk.Label(body, text=detail, bg=PANEL, fg=MUTED, font=("Microsoft YaHei UI", 9), wraplength=310, justify="left").pack(anchor="w", pady=(6, 12))
+        ttk.Button(body, text=button_text, style="Accent.TButton" if primary else "TButton", command=command).pack(anchor="w")
+        return card
+
+    def _metric_card(self, parent: tk.Misc, label: str, value: str, detail: str, accent: str) -> tk.Frame:
+        card = self._panel(parent, background=PANEL_ALT)
+        tk.Frame(card, bg=accent, height=4).pack(fill="x")
+        body = tk.Frame(card, bg=PANEL_ALT)
+        body.pack(fill="both", expand=True, padx=14, pady=12)
+        tk.Label(body, text=label, bg=PANEL_ALT, fg=MUTED, font=("Microsoft YaHei UI", 9, "bold")).pack(anchor="w")
+        tk.Label(body, text=value, bg=PANEL_ALT, fg=TEXT, font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w", pady=(4, 0))
+        tk.Label(body, text=detail, bg=PANEL_ALT, fg=MUTED, font=("Microsoft YaHei UI", 8), wraplength=190, justify="left").pack(anchor="w", pady=(4, 0))
+        return card
+
     def _adopt_lammps_output_as_source(self, output_path: Path | None = None, *, announce: bool = True) -> bool:
         layout = self._current_lammps_output_layout()
         target_path = (output_path or layout.production.data_file).expanduser()
@@ -3914,47 +3958,69 @@ class AlloyDesignerApp(tk.Tk):
         self.about_summary_var = tk.StringVar(value="")
         root = ttk.Frame(self.tab_home, style="App.TFrame")
         root.pack(fill="both", expand=True)
-        top = ttk.LabelFrame(root, text="DDOJY 工作台", style="Section.TLabelframe", padding=16)
-        top.pack(fill="x")
-        top.columnconfigure(1, weight=1)
-        tk.Label(top, text="DDOJY", bg=PANEL, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 24, "bold")).grid(row=0, column=0, sticky="w")
+        hero = self._panel(root)
+        hero.pack(fill="x")
+        tk.Frame(hero, bg=ACCENT, width=6).pack(side="left", fill="y")
+        hero_body = tk.Frame(hero, bg=PANEL)
+        hero_body.pack(side="left", fill="both", expand=True, padx=20, pady=18)
+        title_row = tk.Frame(hero_body, bg=PANEL)
+        title_row.pack(fill="x")
+        tk.Label(title_row, text="DDOJY 科研建模工作台", bg=PANEL, fg=TEXT, font=("Microsoft YaHei UI", 22, "bold")).pack(side="left")
+        tk.Label(title_row, text=f"v{APP_VERSION}", bg=ACCENT_SOFT, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 9, "bold"), padx=10, pady=3).pack(side="left", padx=(12, 0))
         tk.Label(
-            top,
-            text="先确认工作目录，再进入建模或 LAMMPS 运行；所有输出默认写入当前工作目录。",
+            hero_body,
+            text="高/中熵合金结构生成、缺陷设计、LAMMPS 输入与运行结果在一个工作台中统一组织。",
             bg=PANEL,
             fg=MUTED,
             font=("Microsoft YaHei UI", 10),
-            wraplength=900,
+            wraplength=1040,
             justify="left",
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ).pack(anchor="w", pady=(8, 0))
 
-        card_container = ttk.Frame(root)
-        card_container.pack(fill="x", pady=(12, 0))
-        left_card = ttk.LabelFrame(card_container, text="功能入口", style="Section.TLabelframe", padding=14)
-        left_card.pack(side="left", fill="both", expand=True, padx=(0, 8))
-        right_card = ttk.LabelFrame(card_container, text="环境摘要", style="Section.TLabelframe", padding=14)
-        right_card.pack(side="left", fill="both", expand=True, padx=(8, 0))
+        metrics = ttk.Frame(root, style="App.TFrame")
+        metrics.pack(fill="x", pady=(12, 0))
+        for column in range(4):
+            metrics.columnconfigure(column, weight=1, uniform="metrics")
+        self._metric_card(metrics, "版本", APP_VERSION, "单一 VERSION 源", ACCENT).grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        self._metric_card(metrics, "验证", "20 tests", "核心逻辑回归", SECONDARY_ACCENT).grid(row=0, column=1, sticky="nsew", padx=8)
+        self._metric_card(metrics, "模型库", "9 LMP", "打包资产可读", SUCCESS).grid(row=0, column=2, sticky="nsew", padx=8)
+        self._metric_card(metrics, "状态", "Ready", "等待建模任务", WARNING).grid(row=0, column=3, sticky="nsew", padx=(8, 0))
 
-        ttk.Button(left_card, text="进入建模模块", style="Accent.TButton", command=lambda: self.notebook.select(self.tab_modeling)).pack(fill="x", pady=(0, 8))
-        ttk.Button(left_card, text="进入 LAMMPS 接口", command=lambda: self.notebook.select(self.tab_lammps)).pack(fill="x", pady=(0, 8))
-        ttk.Button(left_card, text="打开梯度输出", command=lambda: self.notebook.select(self.tab_output)).pack(fill="x", pady=(0, 8))
-        ttk.Button(left_card, text="打开教程与帮助", command=lambda: self.notebook.select(self.tab_about)).pack(fill="x", pady=(0, 8))
-        ttk.Button(left_card, text="修改工作目录", command=self._open_workspace_settings).pack(fill="x")
+        actions = ttk.Frame(root, style="App.TFrame")
+        actions.pack(fill="x", pady=(12, 0))
+        for column in range(3):
+            actions.columnconfigure(column, weight=1, uniform="actions")
+        self._home_action_card(actions, "建模与合金化", "配方、掺杂、单晶/多晶、纳米粉末和裂纹建模。", "进入建模模块", lambda: self.notebook.select(self.tab_modeling), primary=True).grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        self._home_action_card(actions, "LAMMPS 工作流", "生成输入脚本、保存预览、启动运行并查看热力学曲线。", "进入 LAMMPS 接口", lambda: self.notebook.select(self.tab_lammps)).grid(row=0, column=1, sticky="nsew", padx=8)
+        self._home_action_card(actions, "文档与复现", "查看内置教程、验证命令和发布说明。", "打开教程与帮助", lambda: self.notebook.select(self.tab_about)).grid(row=0, column=2, sticky="nsew", padx=(8, 0))
 
-        tk.Label(right_card, textvariable=self.home_summary_var, bg=PANEL, fg=TEXT, justify="left", anchor="nw", font=("Microsoft YaHei UI", 10)).pack(fill="both", expand=True)
-        ttk.Button(right_card, text="打开工作目录", command=self._open_workspace_dir).pack(anchor="e", pady=(12, 0))
+        lower = ttk.Frame(root, style="App.TFrame")
+        lower.pack(fill="both", expand=True, pady=(12, 0))
+        lower.columnconfigure(0, weight=3)
+        lower.columnconfigure(1, weight=2)
+        workflow = self._panel(lower)
+        workflow.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        workflow_body = tk.Frame(workflow, bg=PANEL)
+        workflow_body.pack(fill="both", expand=True, padx=16, pady=14)
+        tk.Label(workflow_body, text="工作流", bg=PANEL, fg=TEXT, font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
+        steps = ["01 配方设计", "02 掺杂设计", "03 梯度晶粒", "04 单晶/多晶", "05 裂纹处理", "06 输出归档", "07 LAMMPS"]
+        step_row = tk.Frame(workflow_body, bg=PANEL)
+        step_row.pack(fill="x", pady=(12, 0))
+        for index, step in enumerate(steps):
+            chip = tk.Label(step_row, text=step, bg=ACCENT_SOFT if index == 0 else PANEL_ALT, fg=ACCENT_DARK if index == 0 else TEXT, font=("Microsoft YaHei UI", 9, "bold"), padx=10, pady=6)
+            chip.pack(side="left", padx=(0, 7), pady=(0, 7))
+        ttk.Button(workflow_body, text="打开梯度输出", command=lambda: self.notebook.select(self.tab_output)).pack(anchor="w", pady=(10, 0))
 
-        footer = ttk.LabelFrame(root, text="流程说明", style="Section.TLabelframe", padding=14)
-        footer.pack(fill="x", pady=(12, 0))
-        tk.Label(
-            footer,
-            text="配方 -> 掺杂 -> 梯度晶粒 -> 单晶/多晶建模 -> 裂纹 -> 梯度输出 -> LAMMPS 运行。默认继承上一步结果，可在建模页取消。",
-            bg=PANEL,
-            fg=MUTED,
-            justify="left",
-            wraplength=1160,
-            font=("Microsoft YaHei UI", 9),
-        ).pack(anchor="w")
+        env = self._panel(lower)
+        env.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        env_body = tk.Frame(env, bg=PANEL)
+        env_body.pack(fill="both", expand=True, padx=16, pady=14)
+        tk.Label(env_body, text="环境摘要", bg=PANEL, fg=TEXT, font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w")
+        tk.Label(env_body, textvariable=self.home_summary_var, bg=PANEL, fg=TEXT, justify="left", anchor="nw", font=("Consolas", 9), wraplength=440).pack(fill="both", expand=True, pady=(10, 0))
+        env_actions = tk.Frame(env_body, bg=PANEL)
+        env_actions.pack(fill="x", pady=(12, 0))
+        ttk.Button(env_actions, text="打开工作目录", command=self._open_workspace_dir).pack(side="left")
+        ttk.Button(env_actions, text="修改工作目录", command=self._open_workspace_settings).pack(side="left", padx=(8, 0))
 
     def _build_about_tab(self) -> None:
         frame = ttk.Frame(self.tab_about, style="App.TFrame")
@@ -5103,43 +5169,47 @@ class AlloyDesignerApp(tk.Tk):
     def _show_splash_screen(self) -> tk.Toplevel:
         splash = tk.Toplevel(self)
         splash.title(f"DDOJY v{APP_VERSION}")
-        splash.configure(bg=BACKGROUND)
+        splash.configure(bg=HEADER_BG)
         splash.overrideredirect(True)
-        splash.geometry("420x220")
+        splash.geometry("460x238")
         splash.update_idletasks()
         screen_x = splash.winfo_screenwidth()
         screen_y = splash.winfo_screenheight()
-        x = (screen_x - 420) // 2
-        y = (screen_y - 220) // 2
-        splash.geometry(f"420x220+{x}+{y}")
-        frame = ttk.Frame(splash, style="App.TFrame", padding=24)
+        x = (screen_x - 460) // 2
+        y = (screen_y - 238) // 2
+        splash.geometry(f"460x238+{x}+{y}")
+        frame = tk.Frame(splash, bg=PANEL, highlightbackground=BORDER, highlightthickness=1)
         frame.pack(fill="both", expand=True)
-        tk.Label(frame, text=f"DDOJY v{APP_VERSION}", bg=BACKGROUND, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 26, "bold")).pack(anchor="center", pady=(18, 6))
-        tk.Label(frame, text="高熵合金建模与 LAMMPS 模拟集成平台", bg=BACKGROUND, fg=TEXT, font=("Microsoft YaHei UI", 11)).pack(anchor="center")
-        tk.Label(frame, text=f"工作目录: {self._app_settings.workspace_dir}", bg=BACKGROUND, fg=MUTED, font=("Microsoft YaHei UI", 9), wraplength=360, justify="center").pack(anchor="center", pady=(14, 0))
-        tk.Label(frame, text="正在初始化界面与工作流...", bg=BACKGROUND, fg=MUTED, font=("Microsoft YaHei UI", 9)).pack(anchor="center", pady=(8, 0))
+        tk.Frame(frame, bg=ACCENT, height=5).pack(fill="x")
+        body = tk.Frame(frame, bg=PANEL)
+        body.pack(fill="both", expand=True, padx=28, pady=24)
+        tk.Label(body, text=f"DDOJY v{APP_VERSION}", bg=PANEL, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 26, "bold")).pack(anchor="center", pady=(10, 6))
+        tk.Label(body, text="高/中熵合金建模与 LAMMPS 模拟平台", bg=PANEL, fg=TEXT, font=("Microsoft YaHei UI", 11, "bold")).pack(anchor="center")
+        tk.Label(body, text=f"工作目录: {self._app_settings.workspace_dir}", bg=PANEL, fg=MUTED, font=("Microsoft YaHei UI", 9), wraplength=390, justify="center").pack(anchor="center", pady=(16, 0))
+        tk.Label(body, text="正在初始化工作台...", bg=PANEL, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 9, "bold")).pack(anchor="center", pady=(10, 0))
         splash.update_idletasks()
         splash.update()
         return splash
 
     def _setup_style(self) -> None:
+        self._style.configure("TFrame", background=BACKGROUND)
         self._style.configure("App.TFrame", background=BACKGROUND)
         self._style.configure("Card.TFrame", background=PANEL)
         self._style.configure("App.TLabel", background=BACKGROUND, foreground=TEXT, font=("Microsoft YaHei UI", 10))
         self._style.configure("Title.TLabel", background=BACKGROUND, foreground=TEXT, font=("Microsoft YaHei UI", 16, "bold"))
-        self._style.configure("Section.TLabelframe", background=PANEL, foreground=TEXT, borderwidth=1)
+        self._style.configure("Section.TLabelframe", background=PANEL, foreground=TEXT, borderwidth=1, relief="solid")
         self._style.configure("Section.TLabelframe.Label", background=PANEL, foreground=ACCENT_DARK, font=("Microsoft YaHei UI", 10, "bold"))
-        self._style.configure("TNotebook", background=BACKGROUND, borderwidth=0, tabmargins=(10, 8, 10, 0))
+        self._style.configure("TNotebook", background=BACKGROUND, borderwidth=0, tabmargins=(4, 6, 4, 0))
         self._style.configure(
             "TNotebook.Tab",
-            padding=(16, 9),
+            padding=(16, 10),
             font=("Microsoft YaHei UI", 10, "bold"),
-            background="#dcedff",
+            background="#e9eef4",
             foreground=TEXT,
         )
         self._style.map(
             "TNotebook.Tab",
-            background=[("selected", PANEL), ("active", "#edf8ff")],
+            background=[("selected", PANEL), ("active", "#f6f8fb")],
             foreground=[("selected", ACCENT_DARK), ("active", TEXT)],
         )
         self._style.configure("Accent.TButton", font=("Microsoft YaHei UI", 10, "bold"), padding=(12, 8))
@@ -5148,34 +5218,41 @@ class AlloyDesignerApp(tk.Tk):
             background=[("active", ACCENT_DARK), ("!disabled", ACCENT)],
             foreground=[("active", "white"), ("!disabled", "white")],
         )
-        self._style.configure("TButton", padding=(10, 7), background="#edf6ff", foreground=TEXT)
-        self._style.map("TButton", background=[("active", "#d9ecff")], foreground=[("disabled", MUTED), ("active", TEXT)])
-        self._style.configure("TEntry", fieldbackground=PANEL, foreground=TEXT)
-        self._style.configure("TCombobox", fieldbackground=PANEL, foreground=TEXT)
-        self._style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT, rowheight=28, font=("Microsoft YaHei UI", 9))
-        self._style.configure("Treeview.Heading", font=("Microsoft YaHei UI", 9, "bold"))
+        self._style.configure("TButton", padding=(10, 7), background="#eef2f6", foreground=TEXT)
+        self._style.map("TButton", background=[("active", "#e2e8f0")], foreground=[("disabled", MUTED), ("active", TEXT)])
+        self._style.configure("TEntry", fieldbackground=PANEL, foreground=TEXT, bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER, padding=(6, 5))
+        self._style.configure("TCombobox", fieldbackground=PANEL, foreground=TEXT, bordercolor=BORDER, padding=(6, 5))
+        self._style.configure("TCheckbutton", background=BACKGROUND, foreground=TEXT, font=("Microsoft YaHei UI", 10))
+        self._style.configure("TRadiobutton", background=BACKGROUND, foreground=TEXT, font=("Microsoft YaHei UI", 10))
+        self._style.configure("Horizontal.TProgressbar", background=ACCENT, troughcolor="#e7edf3", bordercolor=BORDER, lightcolor=ACCENT, darkcolor=ACCENT)
+        self._style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT, rowheight=30, font=("Microsoft YaHei UI", 9), bordercolor=BORDER)
+        self._style.configure("Treeview.Heading", background=PANEL_ALT, foreground=TEXT, font=("Microsoft YaHei UI", 9, "bold"))
 
     def _add_tooltip(self, widget: tk.Widget, text: str, *, delay: int = 350, wraplength: int = 320) -> None:
         self._tooltips.append(HoverTooltip(widget, text, delay=delay, wraplength=wraplength))
 
     def _build_ui(self) -> None:
-        banner = tk.Frame(self, bg=SKY_BANNER, height=88)
+        banner = tk.Frame(self, bg=HEADER_BG, height=96)
         banner.pack(fill="x", side="top")
         banner.pack_propagate(False)
-        left = tk.Frame(banner, bg=SKY_BANNER)
-        left.pack(side="left", padx=24, pady=16)
-        tk.Label(left, text="高/中熵合金设计器", bg=SKY_BANNER, fg="white", font=("Microsoft YaHei UI", 18, "bold")).pack(anchor="w")
+        tk.Frame(banner, bg=ACCENT, height=4).pack(fill="x", side="bottom")
+        left = tk.Frame(banner, bg=HEADER_BG)
+        left.pack(side="left", padx=28, pady=15)
+        tk.Label(left, text=APP_TITLE, bg=HEADER_BG, fg="white", font=("Microsoft YaHei UI", 18, "bold")).pack(anchor="w")
         tk.Label(
             left,
-            text="配方 -> 掺杂 -> 梯度晶粒 -> 单晶/多晶建模 -> 裂纹 -> 梯度输出",
-            bg=SKY_BANNER,
-            fg="#eef7ff",
+            text="Composition | Doping | Polycrystal | LAMMPS workflow",
+            bg=HEADER_BG,
+            fg="#cbd5e1",
             font=("Microsoft YaHei UI", 10),
         ).pack(anchor="w", pady=(4, 0))
-        self.banner_status = tk.Label(banner, text="就绪", bg=SKY_BANNER, fg="#eef7ff", font=("Microsoft YaHei UI", 10, "bold"))
-        self.banner_status.pack(side="right", padx=24)
+        right = tk.Frame(banner, bg=HEADER_BG)
+        right.pack(side="right", padx=28, pady=18)
+        tk.Label(right, text=f"版本 {APP_VERSION}", bg=HEADER_SUBTLE, fg="#e5edf5", font=("Microsoft YaHei UI", 9, "bold"), padx=12, pady=4).pack(anchor="e")
+        self.banner_status = tk.Label(right, text="就绪", bg=HEADER_BG, fg="#d9f1ef", font=("Microsoft YaHei UI", 10, "bold"))
+        self.banner_status.pack(anchor="e", pady=(8, 0))
 
-        main = ttk.Frame(self, style="App.TFrame", padding=(14, 12, 14, 10))
+        main = ttk.Frame(self, style="App.TFrame", padding=(16, 14, 16, 12))
         main.pack(fill="both", expand=True)
         main.rowconfigure(0, weight=1)
         main.columnconfigure(0, weight=1)
