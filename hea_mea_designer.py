@@ -1342,6 +1342,11 @@ PANEL = "#ffffff"
 PANEL_ALT = "#f8fafc"
 HEADER_BG = "#1f2933"
 HEADER_SUBTLE = "#334155"
+SIDEBAR_BG = "#111827"
+SIDEBAR_HOVER = "#1f2937"
+SIDEBAR_ACTIVE = "#0f766e"
+SIDEBAR_TEXT = "#e5e7eb"
+SIDEBAR_MUTED = "#94a3b8"
 ACCENT = "#0f766e"
 ACCENT_DARK = "#0b5f59"
 ACCENT_SOFT = "#d9f1ef"
@@ -3835,6 +3840,8 @@ class AlloyDesignerApp(tk.Tk):
     def _refresh_home_summary(self) -> None:
         if hasattr(self, "home_summary_var"):
             self.home_summary_var.set(self._workspace_summary_text())
+        if hasattr(self, "footer_workspace"):
+            self.footer_workspace.configure(text=f"工作目录: {self.workspace_dir}")
         if hasattr(self, "about_summary_var"):
             self.about_summary_var.set(
                 f"内置教程与帮助页已载入，可直接浏览使用教程和快速说明。\n"
@@ -5043,7 +5050,7 @@ class AlloyDesignerApp(tk.Tk):
             self.lammps_status_var.set("运行失败")
             return
         self.lammps_status_var.set(f"LAMMPS 正在运行（{mode_label}）")
-        self.banner_status.configure(text=f"LAMMPS 运行中 ({mode_label})")
+        self._set_banner_status(f"LAMMPS 运行中 ({mode_label})", WARNING)
         self._last_thermo_points = []
         self._update_lammps_plot([])
         self._append_lammps_console(f"[启动] {mode_label}: {subprocess.list2cmdline(command)}\n")
@@ -5080,7 +5087,7 @@ class AlloyDesignerApp(tk.Tk):
             self.lammps_result_var.set(f"{current_summary}\n诊断: {issue_text}" if current_summary else f"诊断: {issue_text}")
         if return_code == 0:
             self.lammps_status_var.set("LAMMPS 运行完成（有诊断提示）" if issues else "LAMMPS 运行完成")
-            self.banner_status.configure(text="就绪")
+            self._set_banner_status("就绪", SUCCESS)
             self._append_lammps_console(f"[完成] 运行结束，解析到 {len(points)} 组热力学数据\n")
             if self._current_lammps_run_config is not None:
                 layout = self.input_generator._resolve_output_layout(self._current_lammps_run_config)
@@ -5099,7 +5106,7 @@ class AlloyDesignerApp(tk.Tk):
                     self._load_source_info()
         else:
             self.lammps_status_var.set(f"LAMMPS 退出码 {return_code}（有诊断提示）" if issues else f"LAMMPS 退出码 {return_code}")
-            self.banner_status.configure(text="运行失败")
+            self._set_banner_status("运行失败", DANGER)
             self._append_lammps_console(f"[错误] LAMMPS 退出码 {return_code}\n")
 
     def _update_lammps_plot(self, points: list[LammpsThermoPoint]) -> None:
@@ -5200,6 +5207,11 @@ class AlloyDesignerApp(tk.Tk):
         self._style.configure("Section.TLabelframe", background=PANEL, foreground=TEXT, borderwidth=1, relief="solid")
         self._style.configure("Section.TLabelframe.Label", background=PANEL, foreground=ACCENT_DARK, font=("Microsoft YaHei UI", 10, "bold"))
         self._style.configure("TNotebook", background=BACKGROUND, borderwidth=0, tabmargins=(4, 6, 4, 0))
+        self._style.configure("Workspace.TNotebook", background=BACKGROUND, borderwidth=0, tabmargins=(0, 0, 0, 0))
+        try:
+            self._style.layout("Workspace.TNotebook.Tab", [])
+        except tk.TclError:
+            pass
         self._style.configure(
             "TNotebook.Tab",
             padding=(16, 10),
@@ -5231,6 +5243,82 @@ class AlloyDesignerApp(tk.Tk):
     def _add_tooltip(self, widget: tk.Widget, text: str, *, delay: int = 350, wraplength: int = 320) -> None:
         self._tooltips.append(HoverTooltip(widget, text, delay=delay, wraplength=wraplength))
 
+    def _build_sidebar(self) -> None:
+        self._nav_items: list[tuple[ttk.Frame, tk.Label]] = []
+        self._nav_hover: str | None = None
+
+        header = tk.Frame(self.sidebar, bg=SIDEBAR_BG)
+        header.pack(fill="x", padx=14, pady=(16, 12))
+        tk.Label(header, text="DDOJY", bg=SIDEBAR_BG, fg="white", font=("Microsoft YaHei UI", 20, "bold")).pack(anchor="w")
+        tk.Label(header, text="Workflow Console", bg=SIDEBAR_BG, fg=SIDEBAR_MUTED, font=("Microsoft YaHei UI", 9, "bold")).pack(anchor="w", pady=(2, 0))
+
+        nav_items = [
+            (self.tab_home, "工作台", "Overview"),
+            (self.tab_recipe, "配方设计", "Composition"),
+            (self.tab_doping, "掺杂设计", "Doping"),
+            (self.tab_geometry, "梯度晶粒", "Gradient"),
+            (self.tab_modeling, "单晶/多晶", "Structure"),
+            (self.tab_crack, "裂纹处理", "Crack"),
+            (self.tab_output, "梯度输出", "Output"),
+            (self.tab_lammps, "LAMMPS", "Simulation"),
+            (self.tab_about, "教程帮助", "Docs"),
+        ]
+        for index, (tab, title, subtitle) in enumerate(nav_items):
+            item = tk.Label(
+                self.sidebar,
+                text=f"{index}  {title}\n   {subtitle}",
+                bg=SIDEBAR_BG,
+                fg=SIDEBAR_TEXT,
+                activebackground=SIDEBAR_HOVER,
+                activeforeground="white",
+                font=("Microsoft YaHei UI", 10, "bold"),
+                justify="left",
+                anchor="w",
+                padx=14,
+                pady=8,
+                cursor="hand2",
+            )
+            item.pack(fill="x", padx=10, pady=(0, 4))
+            item.bind("<Button-1>", lambda _event, target=tab: self._select_workspace_tab(target))
+            item.bind("<Enter>", lambda _event, target=tab: self._set_nav_hover(target, True))
+            item.bind("<Leave>", lambda _event, target=tab: self._set_nav_hover(target, False))
+            self._nav_items.append((tab, item))
+
+        footer = tk.Frame(self.sidebar, bg=SIDEBAR_BG)
+        footer.pack(side="bottom", fill="x", padx=14, pady=14)
+        tk.Label(footer, text=f"v{APP_VERSION}", bg=SIDEBAR_BG, fg=SIDEBAR_MUTED, font=("Microsoft YaHei UI", 9, "bold")).pack(anchor="w")
+        tk.Label(footer, text="Verified release build", bg=SIDEBAR_BG, fg=SIDEBAR_MUTED, font=("Microsoft YaHei UI", 8)).pack(anchor="w", pady=(2, 0))
+
+    def _select_workspace_tab(self, tab: ttk.Frame) -> None:
+        self.notebook.select(tab)
+        self._update_navigation()
+
+    def _set_nav_hover(self, tab: ttk.Frame, hovering: bool) -> None:
+        current_tab = str(tab)
+        self._nav_hover = current_tab if hovering else None
+        self._update_navigation()
+
+    def _update_navigation(self, _event: tk.Event | None = None) -> None:
+        if not hasattr(self, "_nav_items"):
+            return
+        selected = self.notebook.select() if hasattr(self, "notebook") else ""
+        for tab, item in self._nav_items:
+            tab_id = str(tab)
+            is_selected = selected == tab_id
+            is_hover = self._nav_hover == tab_id
+            if is_selected:
+                item.configure(bg=SIDEBAR_ACTIVE, fg="white")
+            elif is_hover:
+                item.configure(bg=SIDEBAR_HOVER, fg="white")
+            else:
+                item.configure(bg=SIDEBAR_BG, fg=SIDEBAR_TEXT)
+
+    def _set_banner_status(self, text: str, color: str = TEXT) -> None:
+        header_color = "#e5efff" if color == TEXT else color
+        self.banner_status.configure(text=text, fg=header_color)
+        if hasattr(self, "footer_status"):
+            self.footer_status.configure(text=f"状态: {text}", fg=color if color != TEXT else TEXT)
+
     def _build_ui(self) -> None:
         banner = tk.Frame(self, bg=HEADER_BG, height=96)
         banner.pack(fill="x", side="top")
@@ -5252,12 +5340,30 @@ class AlloyDesignerApp(tk.Tk):
         self.banner_status = tk.Label(right, text="就绪", bg=HEADER_BG, fg="#d9f1ef", font=("Microsoft YaHei UI", 10, "bold"))
         self.banner_status.pack(anchor="e", pady=(8, 0))
 
+        status_bar = tk.Frame(self, bg=PANEL, height=30, highlightbackground=BORDER, highlightthickness=1)
+        status_bar.pack(fill="x", side="bottom")
+        status_bar.pack_propagate(False)
+        self.footer_status = tk.Label(status_bar, text="状态: 就绪", bg=PANEL, fg=TEXT, font=("Microsoft YaHei UI", 9, "bold"))
+        self.footer_status.pack(side="left", padx=14)
+        self.footer_workspace = tk.Label(status_bar, text=f"工作目录: {self.workspace_dir}", bg=PANEL, fg=MUTED, font=("Microsoft YaHei UI", 9))
+        self.footer_workspace.pack(side="right", padx=14)
+
         main = ttk.Frame(self, style="App.TFrame", padding=(16, 14, 16, 12))
         main.pack(fill="both", expand=True)
         main.rowconfigure(0, weight=1)
-        main.columnconfigure(0, weight=1)
+        main.columnconfigure(0, weight=0)
+        main.columnconfigure(1, weight=1)
 
-        self.notebook = ttk.Notebook(main)
+        self.sidebar = tk.Frame(main, bg=SIDEBAR_BG, width=224, highlightbackground="#0b1220", highlightthickness=1)
+        self.sidebar.grid(row=0, column=0, sticky="nsw", padx=(0, 14))
+        self.sidebar.grid_propagate(False)
+
+        workspace = ttk.Frame(main, style="App.TFrame")
+        workspace.grid(row=0, column=1, sticky="nsew")
+        workspace.rowconfigure(0, weight=1)
+        workspace.columnconfigure(0, weight=1)
+
+        self.notebook = ttk.Notebook(workspace, style="Workspace.TNotebook")
         self.notebook.grid(row=0, column=0, sticky="nsew")
 
         self.tab_home = ttk.Frame(self.notebook, style="App.TFrame", padding=12)
@@ -5278,6 +5384,8 @@ class AlloyDesignerApp(tk.Tk):
         self.notebook.add(self.tab_output, text="6 梯度输出")
         self.notebook.add(self.tab_lammps, text="7 LAMMPS接口")
         self.notebook.add(self.tab_about, text="8 教程与帮助")
+        self.notebook.bind("<<NotebookTabChanged>>", self._update_navigation, add="+")
+        self._build_sidebar()
 
         self._build_home_tab()
         self._build_recipe_tab()
@@ -5288,7 +5396,8 @@ class AlloyDesignerApp(tk.Tk):
         self._build_output_tab()
         self._build_lammps_tab()
         self._build_about_tab()
-        self._build_log_panel(main)
+        self._build_log_panel(workspace)
+        self._update_navigation()
 
     def _build_recipe_tab(self) -> None:
         scrollable = ScrollableFrame(self.tab_recipe)
@@ -6419,7 +6528,7 @@ class AlloyDesignerApp(tk.Tk):
         return self._composition_status
 
     def _set_status(self, text: str, color: str = TEXT) -> None:
-        self.banner_status.configure(text=text, fg="#e5efff" if color == TEXT else color)
+        self._set_banner_status(text, color)
         self._composition_status_var().set(text)
 
     def _log(self, text: str) -> None:
