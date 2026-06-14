@@ -156,6 +156,73 @@ class CoreLogicTests(unittest.TestCase):
         self.assertIn("Atoms # atomic", written)
         self.assertIn("# Ni", written)
 
+    def test_read_lammps_structure_accepts_comments_and_validates_counts(self) -> None:
+        valid_text = "\n".join(
+            [
+                "LAMMPS data",
+                "",
+                "2 atoms # generated fixture",
+                "1 atom types # generated fixture",
+                "",
+                "0.0 10.0 xlo xhi",
+                "0.0 10.0 ylo yhi",
+                "0.0 10.0 zlo zhi",
+                "",
+                "Masses",
+                "",
+                "1 58.6934 # Ni",
+                "",
+                "Atoms # atomic",
+                "",
+                "1 1 0.0 0.0 0.0 # origin",
+                "2 1 1.0 1.0 1.0",
+                "",
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "valid.lmp"
+            path.write_text(valid_text, encoding="utf-8")
+            structure = app.read_lammps_structure(path)
+            bad_path = Path(tmpdir) / "bad.lmp"
+            bad_path.write_text(valid_text.replace("2 atoms", "3 atoms", 1), encoding="utf-8")
+
+            self.assertEqual(len(structure.atoms), 2)
+            with self.assertRaises(ValueError):
+                app.read_lammps_structure(bad_path)
+
+    def test_parse_box_bounds_rejects_invalid_limits(self) -> None:
+        with self.assertRaises(ValueError):
+            app.parse_box_bounds(
+                [
+                    "10.0 0.0 xlo xhi",
+                    "0.0 10.0 ylo yhi",
+                    "0.0 10.0 zlo zhi",
+                ]
+            )
+
+    def test_write_lammps_structure_rejects_inconsistent_type_assignments(self) -> None:
+        structure = make_structure()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "out.lmp"
+            with self.assertRaises(ValueError):
+                app.write_lammps_structure(
+                    output_path,
+                    structure,
+                    structure.atoms,
+                    atom_types_count=2,
+                    type_assignments=[1, 1],
+                )
+            with self.assertRaises(ValueError):
+                app.write_lammps_structure(
+                    output_path,
+                    structure,
+                    structure.atoms,
+                    atom_types_count=1,
+                    type_assignments=[1, 1, 2],
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

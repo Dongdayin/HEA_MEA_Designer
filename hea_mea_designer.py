@@ -1815,10 +1815,10 @@ class PipelineResult:
 
 
 ATOM_LINE_RE = re.compile(
-    r"^\s*(\d+)\s+(\d+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s*$"
+    r"^\s*(\d+)\s+(\d+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s*(?:#.*)?$"
 )
-COUNT_RE = re.compile(r"^\s*(\d+)\s+atoms?\s*$", re.IGNORECASE)
-TYPE_RE = re.compile(r"^\s*(\d+)\s+atom types?\s*$", re.IGNORECASE)
+COUNT_RE = re.compile(r"^\s*(\d+)\s+atoms?\s*(?:#.*)?$", re.IGNORECASE)
+TYPE_RE = re.compile(r"^\s*(\d+)\s+atom types?\s*(?:#.*)?$", re.IGNORECASE)
 BOX_RE = re.compile(
     r"^\s*([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+(xlo xhi|ylo yhi|zlo zhi)\s*(?:#.*)?$",
     re.IGNORECASE,
@@ -1935,8 +1935,9 @@ def detect_atomsk_path() -> Path | None:
 
 
 def find_section_index(lines: list[str], name: str) -> int:
+    normalized_name = name.lower()
     for index, line in enumerate(lines):
-        if line.strip().startswith(name):
+        if line.strip().lower().startswith(normalized_name):
             return index
     raise ValueError(f"找不到 {name} 段")
 
@@ -1958,6 +1959,10 @@ def parse_box_bounds(lines: list[str]) -> BoxBounds:
             zlo, zhi = low, high
     if xlo is None or xhi is None or ylo is None or yhi is None or zlo is None or zhi is None:
         raise ValueError("LAMMPS 头部缺少盒子边界信息")
+    if not all(math.isfinite(value) for value in (xlo, xhi, ylo, yhi, zlo, zhi)):
+        raise ValueError("LAMMPS 盒子边界不能包含无穷或 NaN")
+    if xhi <= xlo or yhi <= ylo or zhi <= zlo:
+        raise ValueError("LAMMPS 盒子上边界必须大于下边界")
     return BoxBounds(xlo, xhi, ylo, yhi, zlo, zhi)
 
 
@@ -2044,20 +2049,29 @@ def split_atoms_section(lines: list[str], atoms_index: int) -> tuple[list[str], 
 
 def parse_atom_lines(atom_lines: list[str]) -> list[AtomRecord]:
     atoms: list[AtomRecord] = []
-    for line in atom_lines:
+    for line_number, line in enumerate(atom_lines, start=1):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
         match = ATOM_LINE_RE.match(line)
         if not match:
-            raise ValueError("当前程序只支持 id type x y z 格式的 Atoms 段")
+            raise ValueError(f"当前程序只支持 id type x y z 格式的 Atoms 段；第 {line_number} 行无法解析")
+        atom_id = int(match.group(1))
+        atom_type = int(match.group(2))
+        x = float(match.group(3))
+        y = float(match.group(4))
+        z = float(match.group(5))
+        if atom_id <= 0 or atom_type <= 0:
+            raise ValueError(f"Atoms 段第 {line_number} 行的 id 和 type 必须为正整数")
+        if not all(math.isfinite(value) for value in (x, y, z)):
+            raise ValueError(f"Atoms 段第 {line_number} 行坐标不能包含无穷或 NaN")
         atoms.append(
             AtomRecord(
-                atom_id=int(match.group(1)),
-                atom_type=int(match.group(2)),
-                x=float(match.group(3)),
-                y=float(match.group(4)),
-                z=float(match.group(5)),
+                atom_id=atom_id,
+                atom_type=atom_type,
+                x=x,
+                y=y,
+                z=z,
             )
         )
     if not atoms:
@@ -2079,6 +2093,14 @@ def read_lammps_structure(path: Path) -> LammpsStructure:
     box = parse_box_bounds(header_lines)
     atom_count = parse_count(header_lines)
     atom_types = parse_atom_types(header_lines)
+    if atom_count is not None and atom_count != len(atoms):
+        raise ValueError(f"LAMMPS 头部声明 {atom_count} 个原子，但 Atoms 段读取到 {len(atoms)} 个")
+    atom_ids = [atom.atom_id for atom in atoms]
+    if len(set(atom_ids)) != len(atom_ids):
+        raise ValueError("LAMMPS Atoms 段存在重复 atom id")
+    max_atom_type = max((atom.atom_type for atom in atoms), default=0)
+    if atom_types is not None and max_atom_type > atom_types:
+        raise ValueError(f"LAMMPS 头部声明 {atom_types} 种 atom types，但 Atoms 段出现 type {max_atom_type}")
     return LammpsStructure(
         path=path,
         header_lines=header_lines,
@@ -2148,7 +2170,9 @@ def replace_box_lines(header_lines: list[str], box: BoxBounds) -> list[str]:
 def format_mass_section(entries: list[CompositionEntry]) -> list[str]:
     lines = ["Masses", ""]
     for index, entry in enumerate(entries, start=1):
-        mass_value = entry.mass if entry.mass is not None else 0.0
+        if entry.mass is None or not math.isfinite(entry.mass) or entry.mass <= 0:
+            raise ValueError(f"元素 {entry.symbol} 缺少有效原子质量")
+        mass_value = entry.mass
         lines.append(f"{index:>10} {mass_value:>18.8f}             # {entry.symbol}")
     lines.append("")
     return lines
@@ -2163,8 +2187,16 @@ def format_box_section(box: BoxBounds) -> list[str]:
 
 
 def format_atoms_section(atoms: list[AtomRecord], types: list[int]) -> list[str]:
+    if len(atoms) != len(types):
+        raise ValueError("Atoms 写出失败：原子数量与类型分配数量不一致")
     lines = ["Atoms # atomic", ""]
-    for atom, atom_type in zip(atoms, types):
+    for row_index, (atom, atom_type) in enumerate(zip(atoms, types), start=1):
+        if atom.atom_id <= 0:
+            raise ValueError(f"Atoms 写出失败：第 {row_index} 个原子的 id 必须为正整数")
+        if atom_type <= 0:
+            raise ValueError(f"Atoms 写出失败：第 {row_index} 个原子的 type 必须为正整数")
+        if not all(math.isfinite(value) for value in (atom.x, atom.y, atom.z)):
+            raise ValueError(f"Atoms 写出失败：第 {row_index} 个原子的坐标不能包含无穷或 NaN")
         lines.append(f"{atom.atom_id:>10} {atom_type:>4} {atom.x:>20.12f} {atom.y:>20.12f} {atom.z:>20.12f}")
     return lines
 
@@ -2178,7 +2210,16 @@ def write_lammps_structure(
     type_assignments: list[int] | None = None,
     box_override: BoxBounds | None = None,
 ) -> None:
+    if type_assignments is None:
+        type_assignments = [atom.atom_type for atom in atoms]
+    if len(type_assignments) != len(atoms):
+        raise ValueError("原子数量与类型分配数量不一致，无法写出 LAMMPS 数据")
+    actual_atom_types = max(type_assignments, default=0)
     atom_types = atom_types_count if atom_types_count is not None else (structure.atom_types or 1)
+    if mass_entries is not None:
+        atom_types = max(atom_types, len(mass_entries))
+    if actual_atom_types > atom_types:
+        raise ValueError(f"实际 atom type 最大值为 {actual_atom_types}，超过头部声明的 {atom_types}")
     header_lines = replace_count_lines(structure.header_lines, len(atoms), atom_types)
     if box_override is not None:
         header_lines = replace_box_lines(header_lines, box_override)
@@ -2188,8 +2229,6 @@ def write_lammps_structure(
         lines.extend(structure.mass_lines)
     else:
         lines.extend(format_mass_section(mass_entries))
-    if type_assignments is None:
-        type_assignments = [atom.atom_type for atom in atoms]
     lines.extend(format_atoms_section(atoms, type_assignments))
     lines.extend(structure.tail_lines)
     path.parent.mkdir(parents=True, exist_ok=True)
