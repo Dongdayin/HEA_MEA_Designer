@@ -43,6 +43,9 @@ def make_structure() -> app.LammpsStructure:
 
 
 class CoreLogicTests(unittest.TestCase):
+    def test_relative_workspace_paths_resolve_under_app_root(self) -> None:
+        self.assertEqual(app.resolve_workspace_path("generated"), app.ROOT / "generated")
+
     def test_recipe_parsing_merges_symbols_and_normalizes_formula(self) -> None:
         entries = app.parse_recipe_text("Ni50 Cr25 Ni25")
 

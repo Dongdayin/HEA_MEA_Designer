@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import zipfile
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -13,6 +14,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT / "dist" / "HEA_MEA_Designer"
 RELEASES_DIR = ROOT / "releases"
+SANITIZED_CONFIG_SOURCE = ROOT / "config.example.json"
+
+
+@dataclass(frozen=True)
+class ReleaseEntry:
+    archive_path: str
+    source_path: Path
+    data: bytes | None = None
 
 
 def read_version() -> str:
@@ -45,25 +54,54 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
 def dist_files() -> list[Path]:
     if not DIST_DIR.exists():
         raise SystemExit(f"missing packaged app: {DIST_DIR}")
     return sorted((path for path in DIST_DIR.rglob("*") if path.is_file()), key=lambda path: path.relative_to(DIST_DIR).as_posix().lower())
 
 
-def build_manifest(version: str, commit: str, files: list[Path]) -> str:
+def release_entries() -> list[ReleaseEntry]:
+    entries: list[ReleaseEntry] = []
+    for path in dist_files():
+        relative = path.relative_to(DIST_DIR).as_posix()
+        if relative == "config.json":
+            if not SANITIZED_CONFIG_SOURCE.exists():
+                raise SystemExit(f"missing sanitized config source: {SANITIZED_CONFIG_SOURCE}")
+            entries.append(ReleaseEntry(relative, SANITIZED_CONFIG_SOURCE, SANITIZED_CONFIG_SOURCE.read_bytes()))
+        else:
+            entries.append(ReleaseEntry(relative, path))
+    return entries
+
+
+def entry_size(entry: ReleaseEntry) -> int:
+    if entry.data is not None:
+        return len(entry.data)
+    return entry.source_path.stat().st_size
+
+
+def entry_sha256(entry: ReleaseEntry) -> str:
+    if entry.data is not None:
+        return sha256_bytes(entry.data)
+    return sha256_file(entry.source_path)
+
+
+def build_manifest(version: str, commit: str, entries: list[ReleaseEntry]) -> str:
     lines = [
         "HEA_MEA_Designer release manifest",
         f"Version: {version}",
         f"Git commit: {commit}",
         f"Created at: {datetime.now().astimezone().isoformat(timespec='seconds')}",
         f"Source dist: {DIST_DIR}",
+        f"Distribution config source: {SANITIZED_CONFIG_SOURCE}",
         "",
         "SHA256                                                        Size         Path",
     ]
-    for path in files:
-        relative = path.relative_to(DIST_DIR).as_posix()
-        lines.append(f"{sha256_file(path)}  {path.stat().st_size:>12}  {relative}")
+    for entry in entries:
+        lines.append(f"{entry_sha256(entry)}  {entry_size(entry):>12}  {entry.archive_path}")
     lines.append("")
     return "\n".join(lines)
 
@@ -81,7 +119,8 @@ def build_release_notes(version: str, commit: str, archive_name: str) -> str:
             "Distribution checklist:",
             "- Run HEA_MEA_Designer.exe from the extracted folder.",
             "- Keep the _internal directory beside the executable.",
-            "- Keep config.json and generated/ if preserving local runtime state.",
+            "- The packaged config.json is copied from config.example.json and does not contain local machine paths.",
+            "- Keep generated/ if preserving the included example runtime output.",
             "- Verify the archive with the matching .sha256 file before sharing.",
             "",
         ]
@@ -102,8 +141,8 @@ def create_release(skip_verify: bool = False) -> tuple[Path, Path, Path]:
         print("[verify] running project verification")
         run_command([sys.executable, str(ROOT / "tools" / "verify_project.py")])
 
-    files = dist_files()
-    manifest = build_manifest(version, commit, files)
+    entries = release_entries()
+    manifest = build_manifest(version, commit, entries)
     notes = build_release_notes(version, commit, archive_path.name)
 
     for path in (archive_path, sha_path, manifest_path, notes_path):
@@ -113,9 +152,12 @@ def create_release(skip_verify: bool = False) -> tuple[Path, Path, Path]:
     with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as archive:
         archive.writestr(f"{base_name}/MANIFEST.txt", manifest)
         archive.writestr(f"{base_name}/RELEASE_NOTES.txt", notes)
-        for path in files:
-            relative = path.relative_to(DIST_DIR).as_posix()
-            archive.write(path, f"{base_name}/{relative}")
+        for entry in entries:
+            archive_member = f"{base_name}/{entry.archive_path}"
+            if entry.data is not None:
+                archive.writestr(archive_member, entry.data)
+            else:
+                archive.write(entry.source_path, archive_member)
 
     archive_hash = sha256_file(archive_path)
     sha_path.write_text(f"{archive_hash}  {archive_path.name}\n", encoding="utf-8")

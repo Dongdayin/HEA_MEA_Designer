@@ -56,6 +56,13 @@ def first_existing_path(*candidates: Path) -> Path:
     return candidates[-1]
 
 
+def resolve_workspace_path(value: str | Path) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = ROOT / path
+    return path
+
+
 def read_app_version() -> str:
     for candidate in (PACKAGE_INTERNAL_ROOT / "VERSION", ROOT / "VERSION"):
         try:
@@ -88,7 +95,7 @@ def docs_resource_path(*parts: str) -> Path:
 
 def set_workspace_dir(workspace_dir: Path) -> Path:
     global WORK_DIR, DEFAULT_OUTPUT, DEFAULT_GEOMETRY, DEFAULT_GEOMETRY_CRACK, DEFAULT_GRADIENT, DEFAULT_SEED
-    resolved = workspace_dir.expanduser()
+    resolved = resolve_workspace_path(workspace_dir)
     resolved.mkdir(parents=True, exist_ok=True)
     WORK_DIR = resolved
     DEFAULT_OUTPUT = WORK_DIR / "final_HEA.lmp"
@@ -3740,7 +3747,7 @@ class AlloyDesignerApp(tk.Tk):
 
     def _bootstrap_settings(self) -> AppSettings:
         raw = load_app_config()
-        workspace_dir = Path(raw.get("workspace_dir", str(WORK_DIR))).expanduser()
+        workspace_dir = resolve_workspace_path(raw.get("workspace_dir", str(WORK_DIR)))
         preferred_lammps = default_lammps_executable()
         lammps_text = str(raw.get("lammps_executable", "")).strip()
         lammps_candidate = Path(lammps_text).expanduser() if lammps_text else preferred_lammps

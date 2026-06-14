@@ -28,7 +28,7 @@ python tools/create_release.py
 
 `verify_project.py` 会在上述基础上检查 `dist\HEA_MEA_Designer`，确认 exe、内置 `data/`、`docs/`、`models/`、`config.json`、`generated/` 和打包后 `.lmp` 资产仍然有效。
 
-`create_release.py` 会先执行项目级验证，再在 `releases/` 下生成 zip、SHA256 校验文件、manifest 和 release notes；`releases/` 是本地分发产物，不进入版本库。
+`create_release.py` 会先执行项目级验证，再在 `releases/` 下生成 zip、SHA256 校验文件、manifest 和 release notes；发布 zip 内的 `config.json` 来自 `config.example.json`，不会包含本机路径。`releases/` 是本地分发产物，不进入版本库。
 
 如果只想快速跑单元测试：
 
