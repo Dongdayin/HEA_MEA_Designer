@@ -2209,8 +2209,13 @@ def parse_recipe_text(recipe_text: str) -> list[CompositionEntry]:
         if not match:
             raise ValueError(f"无法解析配方字符串: {compact[index:]}")
         symbol = normalize_symbol(match.group(1))
+        mass = element_mass(symbol)
+        if mass is None:
+            raise ValueError(f"未知或暂不支持的元素符号: {symbol}")
         weight = float(match.group(2)) if match.group(2) else 1.0
-        entries.append(CompositionEntry(symbol=symbol, weight=weight, mass=element_mass(symbol)))
+        if not math.isfinite(weight) or weight <= 0:
+            raise ValueError(f"元素 {symbol} 的配方权重必须为正有限数")
+        entries.append(CompositionEntry(symbol=symbol, weight=weight, mass=mass))
         index = match.end()
     merged: dict[str, CompositionEntry] = {}
     order: list[str] = []
@@ -2231,6 +2236,9 @@ def parse_recipe_text(recipe_text: str) -> list[CompositionEntry]:
 def normalize_entries(entries: list[CompositionEntry]) -> list[CompositionEntry]:
     if not entries:
         return []
+    for entry in entries:
+        if not math.isfinite(entry.weight) or entry.weight <= 0:
+            raise ValueError(f"元素 {entry.symbol} 的配方权重必须为正有限数")
     total = sum(entry.weight for entry in entries)
     if total <= 0:
         raise ValueError("配方权重总和必须大于零")
@@ -2255,11 +2263,13 @@ def largest_remainder_counts(weights: list[float], total: int) -> list[int]:
         raise ValueError("原子总数必须大于零")
     if not weights:
         raise ValueError("没有可用的组分")
+    if any((not math.isfinite(weight)) or weight < 0 for weight in weights):
+        raise ValueError("组分比例不能为负数、无穷或 NaN")
     weight_sum = sum(weights)
     if weight_sum <= 0:
         raise ValueError("组分比例总和必须大于零")
     raw = [weight / weight_sum * total for weight in weights]
-    counts = [int(value) for value in raw]
+    counts = [math.floor(value) for value in raw]
     missing = total - sum(counts)
     order = sorted(range(len(raw)), key=lambda idx: raw[idx] - counts[idx], reverse=True)
     for index in order[:missing]:
@@ -2312,14 +2322,18 @@ def select_doping_region_indices(atoms: list[AtomRecord], box: BoxBounds, region
 def resolve_doping_target_count(amount: float, amount_mode: str, available_count: int) -> int:
     if available_count <= 0:
         return 0
+    if not math.isfinite(amount) or amount <= 0:
+        raise ValueError("掺杂数量必须为正有限数")
     normalized_mode = normalize_doping_amount_mode(amount_mode)
     if normalized_mode == "percent":
-        target_count = int(round(available_count * amount / 100.0))
+        if amount > 100:
+            raise ValueError("掺杂比例不能超过 100%")
+        target_count = math.floor(available_count * amount / 100.0 + 0.5)
     elif normalized_mode == "count":
-        target_count = int(round(amount))
+        target_count = math.floor(amount + 0.5)
     else:
         raise ValueError(f"未知掺杂单位: {amount_mode}")
-    return max(1, target_count)
+    return min(available_count, max(1, target_count))
 
 
 def choose_doping_indices(indices: list[int], count: int, rng: random.Random) -> list[int]:
@@ -2327,15 +2341,7 @@ def choose_doping_indices(indices: list[int], count: int, rng: random.Random) ->
         return []
     shuffled = list(indices)
     rng.shuffle(shuffled)
-    if count <= len(shuffled):
-        return shuffled[:count]
-    selected: list[int] = []
-    while len(selected) < count:
-        for index in shuffled:
-            selected.append(index)
-            if len(selected) >= count:
-                break
-    return selected
+    return shuffled[: min(count, len(shuffled))]
 
 
 def expand_box_to_atoms(box: BoxBounds, atoms: list[AtomRecord]) -> BoxBounds:

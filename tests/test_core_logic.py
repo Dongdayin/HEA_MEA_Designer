@@ -49,11 +49,23 @@ class CoreLogicTests(unittest.TestCase):
         self.assertEqual([entry.weight for entry in entries], [75.0, 25.0])
         self.assertEqual(app.format_formula(entries, percent_digits=1), "Ni75.0Cr25.0")
 
+    def test_recipe_parsing_rejects_invalid_scientific_inputs(self) -> None:
+        with self.assertRaises(ValueError):
+            app.parse_recipe_text("Ni50 Xx50")
+        with self.assertRaises(ValueError):
+            app.parse_recipe_text("Ni50 Cr-1")
+
     def test_largest_remainder_counts_preserves_total(self) -> None:
         counts = app.largest_remainder_counts([1.0, 1.0, 1.0], 10)
 
         self.assertEqual(sum(counts), 10)
         self.assertEqual(counts, [4, 3, 3])
+
+    def test_largest_remainder_counts_rejects_negative_or_nonfinite_weights(self) -> None:
+        with self.assertRaises(ValueError):
+            app.largest_remainder_counts([1.0, -0.1, 1.0], 10)
+        with self.assertRaises(ValueError):
+            app.largest_remainder_counts([1.0, float("nan")], 10)
 
     def test_region_selection_uses_box_geometry(self) -> None:
         structure = make_structure()
@@ -95,6 +107,17 @@ class CoreLogicTests(unittest.TestCase):
         self.assertEqual([entry.symbol for entry in mass_entries], ["Ni", "Cr", "Co"])
         self.assertEqual(box, structure.box)
         self.assertEqual(len(summaries), 1)
+
+    def test_doping_target_selection_never_reuses_same_site(self) -> None:
+        rng = app.random.Random(123)
+
+        selected = app.choose_doping_indices([0, 1, 2], 10, rng)
+
+        self.assertEqual(len(selected), 3)
+        self.assertEqual(sorted(selected), [0, 1, 2])
+        self.assertEqual(app.resolve_doping_target_count(10, "count", 3), 3)
+        with self.assertRaises(ValueError):
+            app.resolve_doping_target_count(101, "percent", 3)
 
     def test_prune_close_contact_uses_periodic_minimum_image(self) -> None:
         structure = make_structure()
