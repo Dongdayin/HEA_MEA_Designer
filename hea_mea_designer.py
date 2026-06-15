@@ -5879,6 +5879,62 @@ class AlloyDesignerApp(tk.Tk):
             font=("Microsoft YaHei UI", 9),
         ).grid(row=1, column=0, columnspan=7, sticky="w", pady=(8, 0))
 
+        atomsk_advanced_card = ttk.LabelFrame(body, text="Atomsk 高级构型后处理", style="Section.TLabelframe", padding=12)
+        atomsk_advanced_card.pack(fill="x", pady=(12, 0))
+        self.atomsk_advanced_card = atomsk_advanced_card
+        for column in (1, 7):
+            atomsk_advanced_card.columnconfigure(column, weight=1)
+        ttk.Label(atomsk_advanced_card, text="操作").grid(row=0, column=0, sticky="w")
+        atomsk_operation_combo = ttk.Combobox(atomsk_advanced_card, textvariable=self.atomsk_operation_var, values=list(ATOMSK_OPERATION_CHOICES), width=20, state="readonly")
+        atomsk_operation_combo.grid(row=0, column=1, sticky="w", padx=(8, 18))
+        ttk.Label(atomsk_advanced_card, text="复制").grid(row=0, column=2, sticky="w")
+        atomsk_dup_x_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_duplicate_x_var, width=5)
+        atomsk_dup_x_entry.grid(row=0, column=3, sticky="w", padx=(8, 4))
+        atomsk_dup_y_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_duplicate_y_var, width=5)
+        atomsk_dup_y_entry.grid(row=0, column=4, sticky="w", padx=(4, 4))
+        atomsk_dup_z_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_duplicate_z_var, width=5)
+        atomsk_dup_z_entry.grid(row=0, column=5, sticky="w", padx=(4, 18))
+        ttk.Label(atomsk_advanced_card, text="镜像轴").grid(row=0, column=6, sticky="w")
+        atomsk_axis_combo = ttk.Combobox(atomsk_advanced_card, textvariable=self.atomsk_mirror_axis_var, values=["X", "Y", "Z"], width=5, state="readonly")
+        atomsk_axis_combo.grid(row=0, column=7, sticky="w", padx=(8, 0))
+        ttk.Label(atomsk_advanced_card, text="Atomsk").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        atomsk_path_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_path_var)
+        atomsk_path_entry.grid(row=1, column=1, columnspan=6, sticky="ew", padx=(8, 8), pady=(10, 0))
+        atomsk_browse_button = ttk.Button(atomsk_advanced_card, text="浏览", command=self._browse_atomsk)
+        atomsk_browse_button.grid(row=1, column=7, sticky="w", pady=(10, 0))
+        ttk.Label(atomsk_advanced_card, text="输出").grid(row=2, column=0, sticky="w", pady=(10, 0))
+        atomsk_output_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_output_var)
+        atomsk_output_entry.grid(row=2, column=1, columnspan=6, sticky="ew", padx=(8, 8), pady=(10, 0))
+        atomsk_output_button = ttk.Button(atomsk_advanced_card, text="浏览", command=self._browse_atomsk_postprocess_output)
+        atomsk_output_button.grid(row=2, column=7, sticky="w", pady=(10, 0))
+        atomsk_preview_label = tk.Label(
+            atomsk_advanced_card,
+            textvariable=self.atomsk_command_preview_var,
+            bg=PANEL,
+            fg=MUTED,
+            justify="left",
+            wraplength=980,
+            font=("Consolas", 9),
+        )
+        atomsk_preview_label.grid(row=3, column=0, columnspan=8, sticky="ew", pady=(10, 0))
+        atomsk_action_row = ttk.Frame(atomsk_advanced_card)
+        atomsk_action_row.grid(row=4, column=0, columnspan=8, sticky="ew", pady=(10, 0))
+        atomsk_refresh_button = ttk.Button(atomsk_action_row, text="预览命令", command=self._refresh_atomsk_command_preview)
+        atomsk_refresh_button.pack(side="left")
+        atomsk_run_button = ttk.Button(atomsk_action_row, text="执行 Atomsk 后处理", style="Accent.TButton", command=self._run_atomsk_postprocess)
+        atomsk_run_button.pack(side="left", padx=(8, 0))
+        tk.Label(
+            atomsk_action_row,
+            text="当前源文件来自右侧/工作流当前模型；执行后会切换为新的输出模型并写入 .atomsk.txt 复现报告。",
+            bg=BACKGROUND,
+            fg=MUTED,
+            font=("Microsoft YaHei UI", 9),
+        ).pack(side="left", padx=(14, 0))
+        atomsk_operation_combo.bind("<<ComboboxSelected>>", lambda _event: self._refresh_atomsk_command_preview())
+        atomsk_axis_combo.bind("<<ComboboxSelected>>", lambda _event: self._refresh_atomsk_command_preview())
+        for entry in (atomsk_dup_x_entry, atomsk_dup_y_entry, atomsk_dup_z_entry, atomsk_path_entry, atomsk_output_entry):
+            entry.bind("<KeyRelease>", lambda _event: self._refresh_atomsk_command_preview())
+
         content = ttk.Panedwindow(body, orient="horizontal")
         content.pack(fill="both", expand=True, pady=(12, 0))
         left_panel = ttk.Frame(content, style="App.TFrame")
@@ -6042,61 +6098,6 @@ class AlloyDesignerApp(tk.Tk):
         single_generate_button.grid(row=0, column=1, sticky="w", padx=(8, 0))
         single_export_button = ttk.Button(single_action_row, text="导出 data", command=self._export_current_model_data_file)
         single_export_button.grid(row=0, column=2, sticky="w", padx=(8, 0))
-
-        atomsk_advanced_card = ttk.LabelFrame(body, text="Atomsk 高级构型后处理", style="Section.TLabelframe", padding=12)
-        atomsk_advanced_card.pack(fill="x", pady=(12, 0))
-        for column in (1, 7):
-            atomsk_advanced_card.columnconfigure(column, weight=1)
-        ttk.Label(atomsk_advanced_card, text="操作").grid(row=0, column=0, sticky="w")
-        atomsk_operation_combo = ttk.Combobox(atomsk_advanced_card, textvariable=self.atomsk_operation_var, values=list(ATOMSK_OPERATION_CHOICES), width=20, state="readonly")
-        atomsk_operation_combo.grid(row=0, column=1, sticky="w", padx=(8, 18))
-        ttk.Label(atomsk_advanced_card, text="复制").grid(row=0, column=2, sticky="w")
-        atomsk_dup_x_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_duplicate_x_var, width=5)
-        atomsk_dup_x_entry.grid(row=0, column=3, sticky="w", padx=(8, 4))
-        atomsk_dup_y_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_duplicate_y_var, width=5)
-        atomsk_dup_y_entry.grid(row=0, column=4, sticky="w", padx=(4, 4))
-        atomsk_dup_z_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_duplicate_z_var, width=5)
-        atomsk_dup_z_entry.grid(row=0, column=5, sticky="w", padx=(4, 18))
-        ttk.Label(atomsk_advanced_card, text="镜像轴").grid(row=0, column=6, sticky="w")
-        atomsk_axis_combo = ttk.Combobox(atomsk_advanced_card, textvariable=self.atomsk_mirror_axis_var, values=["X", "Y", "Z"], width=5, state="readonly")
-        atomsk_axis_combo.grid(row=0, column=7, sticky="w", padx=(8, 0))
-        ttk.Label(atomsk_advanced_card, text="Atomsk").grid(row=1, column=0, sticky="w", pady=(10, 0))
-        atomsk_path_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_path_var)
-        atomsk_path_entry.grid(row=1, column=1, columnspan=6, sticky="ew", padx=(8, 8), pady=(10, 0))
-        atomsk_browse_button = ttk.Button(atomsk_advanced_card, text="浏览", command=self._browse_atomsk)
-        atomsk_browse_button.grid(row=1, column=7, sticky="w", pady=(10, 0))
-        ttk.Label(atomsk_advanced_card, text="输出").grid(row=2, column=0, sticky="w", pady=(10, 0))
-        atomsk_output_entry = ttk.Entry(atomsk_advanced_card, textvariable=self.atomsk_output_var)
-        atomsk_output_entry.grid(row=2, column=1, columnspan=6, sticky="ew", padx=(8, 8), pady=(10, 0))
-        atomsk_output_button = ttk.Button(atomsk_advanced_card, text="浏览", command=self._browse_atomsk_postprocess_output)
-        atomsk_output_button.grid(row=2, column=7, sticky="w", pady=(10, 0))
-        atomsk_preview_label = tk.Label(
-            atomsk_advanced_card,
-            textvariable=self.atomsk_command_preview_var,
-            bg=PANEL,
-            fg=MUTED,
-            justify="left",
-            wraplength=980,
-            font=("Consolas", 9),
-        )
-        atomsk_preview_label.grid(row=3, column=0, columnspan=8, sticky="ew", pady=(10, 0))
-        atomsk_action_row = ttk.Frame(atomsk_advanced_card)
-        atomsk_action_row.grid(row=4, column=0, columnspan=8, sticky="ew", pady=(10, 0))
-        atomsk_refresh_button = ttk.Button(atomsk_action_row, text="预览命令", command=self._refresh_atomsk_command_preview)
-        atomsk_refresh_button.pack(side="left")
-        atomsk_run_button = ttk.Button(atomsk_action_row, text="执行 Atomsk 后处理", style="Accent.TButton", command=self._run_atomsk_postprocess)
-        atomsk_run_button.pack(side="left", padx=(8, 0))
-        tk.Label(
-            atomsk_action_row,
-            text="当前源文件来自右侧/工作流当前模型；执行后会切换为新的输出模型并写入 .atomsk.txt 复现报告。",
-            bg=BACKGROUND,
-            fg=MUTED,
-            font=("Microsoft YaHei UI", 9),
-        ).pack(side="left", padx=(14, 0))
-        atomsk_operation_combo.bind("<<ComboboxSelected>>", lambda _event: self._refresh_atomsk_command_preview())
-        atomsk_axis_combo.bind("<<ComboboxSelected>>", lambda _event: self._refresh_atomsk_command_preview())
-        for entry in (atomsk_dup_x_entry, atomsk_dup_y_entry, atomsk_dup_z_entry, atomsk_path_entry, atomsk_output_entry):
-            entry.bind("<KeyRelease>", lambda _event: self._refresh_atomsk_command_preview())
 
         right_panel.columnconfigure(0, weight=1)
         right_panel.rowconfigure(0, weight=1)
