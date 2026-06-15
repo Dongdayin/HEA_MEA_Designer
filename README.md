@@ -2,13 +2,19 @@
 
 HEA/MEA Designer is a Windows desktop workflow tool for high-entropy and medium-entropy alloy molecular-dynamics preprocessing. It integrates alloy recipe setup, doping, grain/geometry generation, single-crystal and polycrystal modeling, crack templates, Atomsk postprocessing, and LAMMPS input preparation.
 
-The current public release is **v1.3.2**.
+The current public release is **v1.3.3**.
+
+Naming convention:
+
+- Product name: **HEA/MEA Designer**
+- Chinese name: **高/中熵合金设计器**
+- Repository, executable, and release artifact prefix: **HEA_MEA_Designer**
 
 ## Download
 
 Download the Windows package from:
 
-- [HEA_MEA_Designer v1.3.2](https://github.com/Dongdayin/HEA_MEA_Designer/releases/tag/v1.3.2)
+- [HEA_MEA_Designer v1.3.3](https://github.com/Dongdayin/HEA_MEA_Designer/releases/tag/v1.3.3)
 
 After downloading, extract the archive and run:
 
@@ -28,9 +34,9 @@ Keep the `_internal` directory beside the executable.
 - LAMMPS input generation, runtime path configuration, and output directory organization.
 - Reproducibility reports for Atomsk postprocessing through `.atomsk.txt` command logs.
 
-## v1.3.2 Fix
+## Recent Fixes
 
-v1.3.2 fixes an Atomsk workflow issue where repeated postprocessing could make the output path equal to the current source model path. The GUI now:
+v1.3.2 fixed an Atomsk workflow issue where repeated postprocessing could make the output path equal to the current source model path. v1.3.3 aligns the public product name across the GUI, documentation, repository, and release pages. The GUI now:
 
 - warns in the command preview when a source/output collision is detected;
 - provides an `自动命名输出` button;
@@ -39,7 +45,7 @@ v1.3.2 fixes an Atomsk workflow issue where repeated postprocessing could make t
 
 ## Validation
 
-The v1.3.2 package was checked with:
+The v1.3.3 package was checked with:
 
 ```powershell
 python tools\verify_project.py
@@ -61,7 +67,7 @@ This project is a modeling and simulation-preparation tool. It does not validate
 A rigorous short-video script is included at:
 
 ```text
-docs/video_script_v1.3.2.md
+docs/video_script_v1.3.3.md
 ```
 
 It covers the tool positioning, Atomsk/LAMMPS workflow, reproducibility claims, and the scientific limitations that should be stated when sharing the software.

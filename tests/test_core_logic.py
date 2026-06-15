@@ -237,7 +237,7 @@ class CoreLogicTests(unittest.TestCase):
         self.assertIn("Atoms # atomic", written)
         self.assertIn("# Ni", written)
         title = written.splitlines()[0]
-        self.assertTrue(title.startswith("# DDOJY generated LAMMPS data"))
+        self.assertTrue(title.startswith("# HEA/MEA Designer generated LAMMPS data"))
         self.assertIn("source=input.lmp", title)
         self.assertIn("atoms=2", title)
         self.assertIn("atom_types=1", title)
