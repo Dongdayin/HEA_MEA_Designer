@@ -17,7 +17,7 @@ import sys
 import time
 import threading
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 import tkinter as tk
@@ -1337,6 +1337,12 @@ ATOMSK_OPERATION_LABELS = {
     "mirror_merge": "镜像合并双层",
 }
 ATOMSK_OPERATION_CHOICES = tuple(ATOMSK_OPERATION_LABELS.values())
+ATOMSK_OUTPUT_TAGS = {
+    "standardize": "wrap",
+    "duplicate": "duplicate",
+    "mirror": "mirror",
+    "mirror_merge": "mirror_merge",
+}
 FCC_BASIS = (
     (0.0, 0.0, 0.0),
     (0.5, 0.5, 0.0),
@@ -2026,6 +2032,36 @@ def parse_atomsk_duplicate_factors(x_text: str, y_text: str, z_text: str) -> tup
         parse_positive_int(y_text, "Atomsk Y 复制倍数"),
         parse_positive_int(z_text, "Atomsk Z 复制倍数"),
     )
+
+
+def paths_refer_to_same_file(left: Path, right: Path) -> bool:
+    try:
+        return left.expanduser().resolve() == right.expanduser().resolve()
+    except OSError:
+        return left.expanduser().absolute() == right.expanduser().absolute()
+
+
+def next_available_output_path(candidate: Path, blocked_paths: tuple[Path, ...] = ()) -> Path:
+    blocked_resolved = {path.expanduser().resolve() for path in blocked_paths}
+    candidate = candidate.expanduser()
+    if candidate.resolve() not in blocked_resolved and not candidate.exists():
+        return candidate
+    parent = candidate.parent
+    stem = candidate.stem or "atomsk_model"
+    suffix = candidate.suffix or ".lmp"
+    for index in range(1, 10000):
+        numbered = parent / f"{stem}_{index:03d}{suffix}"
+        if numbered.resolve() not in blocked_resolved and not numbered.exists():
+            return numbered
+    raise RuntimeError(f"无法生成可用输出文件名: {candidate}")
+
+
+def suggest_atomsk_postprocess_output(source_path: Path, operation: str, output_dir: Path) -> Path:
+    operation_key = normalize_atomsk_operation(operation)
+    tag = ATOMSK_OUTPUT_TAGS[operation_key]
+    source_stem = source_path.stem or "atomsk_model"
+    candidate = output_dir / f"{source_stem}_{tag}.lmp"
+    return next_available_output_path(candidate, blocked_paths=(source_path,))
 
 
 def normalize_crystal_structure(value: str) -> str:
@@ -3464,17 +3500,16 @@ def run_atomsk_postprocess(config: AtomskPostprocessConfig, env: dict[str, str] 
         raise FileNotFoundError(f"找不到 Atomsk: {config.atomsk_path}")
     if not config.source_path.exists():
         raise FileNotFoundError(f"找不到源文件: {config.source_path}")
-    if config.source_path.resolve() == config.output_path.resolve():
-        raise ValueError("Atomsk 输出文件不能覆盖源文件")
+    if paths_refer_to_same_file(config.source_path, config.output_path):
+        raise ValueError("Atomsk 输出文件不能覆盖源文件；请换一个输出路径，或点击“自动命名输出”。")
     config.output_path.parent.mkdir(parents=True, exist_ok=True)
     plan = build_atomsk_postprocess_plan(config)
     source_resolved = config.source_path.resolve()
     output_resolved = config.output_path.resolve()
     for temporary in plan.temporary_paths:
-        temporary_resolved = temporary.resolve()
-        if temporary_resolved == source_resolved:
+        if paths_refer_to_same_file(temporary, source_resolved):
             raise ValueError(f"Atomsk 临时文件不能覆盖源文件: {temporary}")
-        if temporary_resolved == output_resolved:
+        if paths_refer_to_same_file(temporary, output_resolved):
             raise ValueError(f"Atomsk 临时文件不能覆盖输出文件: {temporary}")
     if config.output_path.exists():
         config.output_path.unlink()
@@ -5921,6 +5956,8 @@ class AlloyDesignerApp(tk.Tk):
         atomsk_action_row.grid(row=4, column=0, columnspan=8, sticky="ew", pady=(10, 0))
         atomsk_refresh_button = ttk.Button(atomsk_action_row, text="预览命令", command=self._refresh_atomsk_command_preview)
         atomsk_refresh_button.pack(side="left")
+        atomsk_auto_name_button = ttk.Button(atomsk_action_row, text="自动命名输出", command=self._auto_name_atomsk_postprocess_output)
+        atomsk_auto_name_button.pack(side="left", padx=(8, 0))
         atomsk_run_button = ttk.Button(atomsk_action_row, text="执行 Atomsk 后处理", style="Accent.TButton", command=self._run_atomsk_postprocess)
         atomsk_run_button.pack(side="left", padx=(8, 0))
         tk.Label(
@@ -6166,6 +6203,7 @@ class AlloyDesignerApp(tk.Tk):
         self._add_tooltip(atomsk_browse_button, "选择 atomsk.exe。")
         self._add_tooltip(atomsk_output_entry, "建议输出为 .lmp，便于直接接入后续配方、裂纹和 LAMMPS 流程。")
         self._add_tooltip(atomsk_refresh_button, "预览将要执行的 Atomsk 命令。")
+        self._add_tooltip(atomsk_auto_name_button, "按当前源模型和 Atomsk 操作生成不会覆盖源文件的输出路径。")
         self._add_tooltip(atomsk_run_button, "执行 Atomsk 命令，并把结果作为当前模型源文件。")
         self._add_tooltip(self.modeling_preview_title, "当前模式的主预览标题。")
         self._add_tooltip(self.modeling_preview_canvas, "显示当前建模模式的几何投影。")
@@ -6274,10 +6312,18 @@ class AlloyDesignerApp(tk.Tk):
             layout_mode=layout_mode,
         )
 
-    def _default_atomsk_postprocess_output(self) -> Path:
-        return WORK_DIR / "atomsk_advanced" / "atomsk_model.lmp"
+    def _default_atomsk_postprocess_output(self, source_path: Path | None = None, operation: str | None = None) -> Path:
+        source = source_path
+        if source is None and hasattr(self, "source_path_var"):
+            source_text = self.source_path_var.get().strip()
+            if source_text:
+                source = Path(source_text).expanduser()
+        if source is None:
+            return WORK_DIR / "atomsk_advanced" / "atomsk_model.lmp"
+        operation_key = normalize_atomsk_operation(operation or self.atomsk_operation_var.get())
+        return suggest_atomsk_postprocess_output(source, operation_key, WORK_DIR / "atomsk_advanced")
 
-    def _atomsk_postprocess_config(self) -> AtomskPostprocessConfig:
+    def _atomsk_postprocess_config(self, *, auto_safe_output: bool = False) -> AtomskPostprocessConfig:
         atomsk_path = find_atomsk_exe(self.atomsk_path_var.get())
         source_text = self.source_path_var.get().strip()
         if not source_text:
@@ -6292,6 +6338,11 @@ class AlloyDesignerApp(tk.Tk):
             self.atomsk_duplicate_z_var.get(),
         )
         mirror_axis = normalize_atomsk_axis(self.atomsk_mirror_axis_var.get())
+        if paths_refer_to_same_file(source_path, output_path):
+            if not auto_safe_output:
+                raise ValueError("输出路径与源文件相同；点击“自动命名输出”或执行时自动避让。")
+            output_path = self._default_atomsk_postprocess_output(source_path, operation)
+            self.atomsk_output_var.set(str(output_path))
         return AtomskPostprocessConfig(
             atomsk_path=atomsk_path,
             source_path=source_path,
@@ -6305,12 +6356,40 @@ class AlloyDesignerApp(tk.Tk):
         if not hasattr(self, "atomsk_command_preview_var"):
             return
         try:
-            config = self._atomsk_postprocess_config()
+            auto_note = ""
+            try:
+                config = self._atomsk_postprocess_config()
+            except ValueError as exc:
+                if "输出路径与源文件相同" not in str(exc):
+                    raise
+                source_text = self.source_path_var.get().strip()
+                if not source_text:
+                    raise
+                source_path = Path(source_text).expanduser()
+                operation = normalize_atomsk_operation(self.atomsk_operation_var.get())
+                output_path = self._default_atomsk_postprocess_output(source_path, operation)
+                config = self._atomsk_postprocess_config(auto_safe_output=True)
+                config = replace(config, output_path=output_path)
+                auto_note = f"注意：输出路径与源文件相同，执行时将自动改为: {output_path}\n"
             plan = build_atomsk_postprocess_plan(config)
             command_lines = [subprocess.list2cmdline([str(part) for part in command]) for command in plan.commands]
-            self.atomsk_command_preview_var.set(f"{plan.description}\n" + "\n".join(command_lines))
+            self.atomsk_command_preview_var.set(f"{auto_note}{plan.description}\n" + "\n".join(command_lines))
         except Exception as exc:
             self.atomsk_command_preview_var.set(f"Atomsk 命令预览失败: {exc}")
+
+    def _auto_name_atomsk_postprocess_output(self) -> None:
+        try:
+            source_text = self.source_path_var.get().strip()
+            if not source_text:
+                raise ValueError("当前模型源文件为空，请先生成或选择一个模型")
+            operation = normalize_atomsk_operation(self.atomsk_operation_var.get())
+            output_path = self._default_atomsk_postprocess_output(Path(source_text).expanduser(), operation)
+            self.atomsk_output_var.set(str(output_path))
+            self._refresh_atomsk_command_preview()
+            self._set_status("已自动命名 Atomsk 输出", SUCCESS)
+        except Exception as exc:
+            messagebox.showerror("自动命名失败", str(exc))
+            self._log(f"Atomsk 自动命名失败: {exc}")
 
     def _browse_atomsk_postprocess_output(self) -> None:
         initial = Path(self.atomsk_output_var.get().strip() or str(self._default_atomsk_postprocess_output())).expanduser()
@@ -6327,11 +6406,12 @@ class AlloyDesignerApp(tk.Tk):
 
     def _run_atomsk_postprocess(self) -> None:
         try:
-            config = self._atomsk_postprocess_config()
+            config = self._atomsk_postprocess_config(auto_safe_output=True)
             output_path, report_path = run_atomsk_postprocess(config, env=self._subprocess_env())
             self._invalidate_structure_cache()
             self.source_path_var.set(str(output_path))
             self.lammps_data_file_var.set(str(output_path))
+            self.atomsk_output_var.set(str(self._default_atomsk_postprocess_output(output_path, config.operation)))
             self._load_source_info()
             self._refresh_all()
             self._refresh_modeling_previews()

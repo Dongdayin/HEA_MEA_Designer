@@ -96,6 +96,17 @@ class CoreLogicTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 app.run_atomsk_postprocess(config)
 
+    def test_atomsk_suggested_output_avoids_source_and_existing_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            source_path = output_dir / "model.lmp"
+            source_path.write_text("LAMMPS data", encoding="utf-8")
+            (output_dir / "model_duplicate.lmp").write_text("old output", encoding="utf-8")
+
+            suggested = app.suggest_atomsk_postprocess_output(source_path, "duplicate", output_dir)
+
+            self.assertEqual(suggested, output_dir / "model_duplicate_001.lmp")
+
     def test_recipe_parsing_merges_symbols_and_normalizes_formula(self) -> None:
         entries = app.parse_recipe_text("Ni50 Cr25 Ni25")
 
