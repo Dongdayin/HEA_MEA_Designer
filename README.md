@@ -41,13 +41,11 @@ The public repository intentionally keeps only the files needed to build, verify
 - application source, tests, package scripts, and verification scripts;
 - current user-facing documentation in `docs/`;
 - the default structure file `data/final.lmp`;
-- the curated model presets referenced by the GUI model library.
-
-Private notes, video scripts, research-paper references, old tutorial material, Atomsk intermediate output, generated runtime files, and local distribution archives are excluded from the repository and release zip.
+- the curated model presets referenced by the GUI model library
 
 ## Recent Fixes
 
-v1.3.2 fixed an Atomsk workflow issue where repeated postprocessing could make the output path equal to the current source model path. v1.3.3 aligns the public product name across the GUI, documentation, repository, and release pages. v1.3.4 trims the public repository and release package to the current necessary files only. The GUI now:
+v1.3.2 fixed an Atomsk workflow issue where repeated postprocessing could make the output path equal to the current source model path. v1.3.3 aligns the public product name across the GUI, documentation, repository, and release pages.  The GUI now:
 
 - warns in the command preview when a source/output collision is detected;
 - provides an `自动命名输出` button;
