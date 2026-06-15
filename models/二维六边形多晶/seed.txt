@@ -1,2 +1,0 @@
-box 80 40 0
-lattice bcc

@@ -15,6 +15,20 @@ ROOT = Path(__file__).resolve().parents[1]
 DIST_DIR = ROOT / "dist" / "HEA_MEA_Designer"
 RELEASES_DIR = ROOT / "releases"
 SANITIZED_CONFIG_SOURCE = ROOT / "config.example.json"
+ALLOWED_INTERNAL_FILES = {
+    "VERSION",
+    "data/final.lmp",
+    "docs/README_GUI.md",
+    "docs/使用教程.md",
+    "docs/verification.md",
+    "models/二维六边形多晶/final.lmp",
+    "models/二维随机多晶/final.lmp",
+    "models/二维梯度孪晶多晶/final.cfg",
+    "models/倾斜孪晶多晶/final.cfg",
+    "models/预存孪晶多晶/final.cfg",
+    "models/双相多晶/final_polycrystal.cfg",
+    "models/K-S取向多晶/final_Fe.lmp",
+}
 
 
 @dataclass(frozen=True)
@@ -66,14 +80,27 @@ def dist_files() -> list[Path]:
 
 def release_entries() -> list[ReleaseEntry]:
     entries: list[ReleaseEntry] = []
+    has_runtime_config = False
     for path in dist_files():
         relative = path.relative_to(DIST_DIR).as_posix()
+        if relative.startswith("generated/"):
+            continue
         if relative == "config.json":
             if not SANITIZED_CONFIG_SOURCE.exists():
                 raise SystemExit(f"missing sanitized config source: {SANITIZED_CONFIG_SOURCE}")
             entries.append(ReleaseEntry(relative, SANITIZED_CONFIG_SOURCE, SANITIZED_CONFIG_SOURCE.read_bytes()))
+            has_runtime_config = True
+        elif relative == "_internal/VERSION" or relative.startswith(("_internal/data/", "_internal/docs/", "_internal/models/")):
+            internal_relative = relative.removeprefix("_internal/")
+            if internal_relative not in ALLOWED_INTERNAL_FILES:
+                raise SystemExit(f"non-release internal file found in dist: {relative}")
+            entries.append(ReleaseEntry(relative, path))
         else:
             entries.append(ReleaseEntry(relative, path))
+    if not has_runtime_config:
+        if not SANITIZED_CONFIG_SOURCE.exists():
+            raise SystemExit(f"missing sanitized config source: {SANITIZED_CONFIG_SOURCE}")
+        entries.append(ReleaseEntry("config.json", SANITIZED_CONFIG_SOURCE, SANITIZED_CONFIG_SOURCE.read_bytes()))
     return entries
 
 
@@ -120,7 +147,7 @@ def build_release_notes(version: str, commit: str, archive_name: str) -> str:
             "- Run HEA_MEA_Designer.exe from the extracted folder.",
             "- Keep the _internal directory beside the executable.",
             "- The packaged config.json is copied from config.example.json and does not contain local machine paths.",
-            "- Keep generated/ if preserving the included example runtime output.",
+            "- Runtime output is created under generated/ after first use and is not included in the release archive.",
             "- Verify the archive with the matching .sha256 file before sharing.",
             "",
         ]

@@ -22,6 +22,30 @@ releases/
 generated/
 test/
 
+# Private notes, scripts, and non-release references
+docs/iteration_log.md
+docs/video_script*.md
+reference/
+拉伸模板/
+text.md
+HEA_MEA_Generator.spec
+CoCrFeMnNi.mean
+library_CoCrFeMnNi.meam
+
+# Atomsk intermediate assets; keep only runtime presets referenced by the GUI
+data/*
+!data/final.lmp
+models/**
+!models/
+!models/*/
+!models/二维六边形多晶/final.lmp
+!models/二维随机多晶/final.lmp
+!models/二维梯度孪晶多晶/final.cfg
+!models/倾斜孪晶多晶/final.cfg
+!models/预存孪晶多晶/final.cfg
+!models/双相多晶/final_polycrystal.cfg
+!models/K-S取向多晶/final_Fe.lmp
+
 # OS/editor noise
 .DS_Store
 Thumbs.db

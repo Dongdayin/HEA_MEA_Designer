@@ -22,14 +22,6 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 import tkinter as tk
 
-from matplotlib import rcParams
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-
-rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial Unicode MS", "DejaVu Sans"]
-rcParams["axes.unicode_minus"] = False
-
-
 def app_root() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
@@ -5148,12 +5140,12 @@ class AlloyDesignerApp(tk.Tk):
         result_card = ttk.LabelFrame(lower, text="结果查看", style="Section.TLabelframe", padding=14)
         result_card.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
         result_card.rowconfigure(1, weight=1)
+        result_card.columnconfigure(0, weight=1)
         self.lammps_result_var = tk.StringVar(value="等待运行结果")
         tk.Label(result_card, textvariable=self.lammps_result_var, bg=PANEL, fg=MUTED, justify="left", wraplength=600, font=("Microsoft YaHei UI", 10)).grid(row=0, column=0, sticky="w")
-        self.lammps_figure = Figure(figsize=(6.0, 4.8), dpi=100)
-        self.lammps_canvas = FigureCanvasTkAgg(self.lammps_figure, master=result_card)
-        self.lammps_canvas_widget = self.lammps_canvas.get_tk_widget()
+        self.lammps_canvas_widget = tk.Canvas(result_card, bg="#ffffff", height=360, highlightthickness=1, highlightbackground=BORDER)
         self.lammps_canvas_widget.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
+        self.lammps_canvas_widget.bind("<Configure>", lambda _event: self._update_lammps_plot(getattr(self, "_last_thermo_points", [])))
         self._update_lammps_plot([])
         self._apply_lammps_scenario(self.lammps_scenario_var.get())
         self._auto_detect_lammps_elements(Path(self.lammps_data_file_var.get().strip() or self.source_path_var.get()), update_status=False)
@@ -5300,37 +5292,92 @@ class AlloyDesignerApp(tk.Tk):
             self._append_lammps_console(f"[错误] LAMMPS 退出码 {return_code}\n")
 
     def _update_lammps_plot(self, points: list[LammpsThermoPoint]) -> None:
-        self.lammps_figure.clear()
+        canvas = self.lammps_canvas_widget
+        canvas.delete("all")
+        width = max(canvas.winfo_width(), 560)
+        height = max(canvas.winfo_height(), 340)
+        canvas.create_rectangle(0, 0, width, height, fill="#ffffff", outline="")
         if not points:
-            ax = self.lammps_figure.add_subplot(111)
-            ax.set_title("热力学结果")
-            ax.text(0.5, 0.5, "等待 log.lammps", ha="center", va="center", transform=ax.transAxes, color=MUTED)
-            ax.set_axis_off()
-            self.lammps_canvas.draw_idle()
+            canvas.create_text(width / 2, height / 2 - 12, text="热力学结果", fill=TEXT, font=("Microsoft YaHei UI", 12, "bold"))
+            canvas.create_text(width / 2, height / 2 + 16, text="等待 log.lammps", fill=MUTED, font=("Microsoft YaHei UI", 10))
             self.lammps_result_var.set("尚未解析到热力学结果；完成一次运行后会自动绘图。")
             return
 
         temperature_points = [(point.step, point.temperature) for point in points if point.temperature is not None]
         energy_points = [(point.step, point.total_energy) for point in points if point.total_energy is not None]
-
-        ax_temp = self.lammps_figure.add_subplot(211)
-        if temperature_points:
-            ax_temp.plot([step for step, _value in temperature_points], [value for _step, value in temperature_points], color=ACCENT_DARK, linewidth=1.6)
-        ax_temp.set_ylabel("Temp (K)")
-        ax_temp.grid(True, alpha=0.25)
-
-        ax_energy = self.lammps_figure.add_subplot(212, sharex=ax_temp)
-        if energy_points:
-            ax_energy.plot([step for step, _value in energy_points], [value for _step, value in energy_points], color="#287f5a", linewidth=1.6)
-        ax_energy.set_xlabel("Step")
-        ax_energy.set_ylabel("Etot")
-        ax_energy.grid(True, alpha=0.25)
-
-        self.lammps_figure.tight_layout()
-        self.lammps_canvas.draw_idle()
+        margin_left = 74
+        margin_right = 20
+        top = 34
+        gap = 42
+        bottom_margin = 34
+        panel_height = max(90, (height - top - gap - bottom_margin) / 2)
+        plot_right = width - margin_right
+        temp_box = (margin_left, top, plot_right, top + panel_height)
+        energy_top = top + panel_height + gap
+        energy_box = (margin_left, energy_top, plot_right, energy_top + panel_height)
+        self._draw_lammps_series(canvas, temperature_points, temp_box, "Temperature", "Temp (K)", ACCENT_DARK, show_x_axis=False)
+        self._draw_lammps_series(canvas, energy_points, energy_box, "Total energy", "Etot", "#287f5a", show_x_axis=True)
         self.lammps_result_var.set(
             f"已解析 {len(points)} 组热力学数据。最后一步: {points[-1].step}；最后温度: {temperature_points[-1][1] if temperature_points else 'N/A'}；最后总能量: {energy_points[-1][1] if energy_points else 'N/A'}。"
         )
+
+    def _draw_lammps_series(
+        self,
+        canvas: tk.Canvas,
+        series: list[tuple[int, float]],
+        box: tuple[float, float, float, float],
+        title: str,
+        y_label: str,
+        color: str,
+        *,
+        show_x_axis: bool,
+    ) -> None:
+        left, top, right, bottom = box
+        canvas.create_rectangle(left, top, right, bottom, fill="#fbfdff", outline=BORDER)
+        canvas.create_text(left, top - 8, text=title, anchor="sw", fill=TEXT, font=("Microsoft YaHei UI", 9, "bold"))
+        canvas.create_text(10, (top + bottom) / 2, text=y_label, anchor="w", fill=MUTED, font=("Microsoft YaHei UI", 8))
+        if not series:
+            canvas.create_text((left + right) / 2, (top + bottom) / 2, text="无可绘制数据", fill=MUTED, font=("Microsoft YaHei UI", 9))
+            return
+
+        x_values = [step for step, _value in series]
+        y_values = [value for _step, value in series]
+        x_min, x_max = min(x_values), max(x_values)
+        y_min, y_max = min(y_values), max(y_values)
+        if x_min == x_max:
+            x_min -= 1
+            x_max += 1
+        if y_min == y_max:
+            delta = max(abs(y_min) * 0.05, 1.0)
+            y_min -= delta
+            y_max += delta
+
+        for index in range(5):
+            fraction = index / 4
+            y = bottom - fraction * (bottom - top)
+            value = y_min + fraction * (y_max - y_min)
+            canvas.create_line(left, y, right, y, fill="#e6edf4")
+            canvas.create_text(left - 8, y, text=f"{value:.3g}", anchor="e", fill=MUTED, font=("Consolas", 8))
+        canvas.create_line(left, bottom, right, bottom, fill="#9aa7b5")
+        canvas.create_line(left, top, left, bottom, fill="#9aa7b5")
+
+        scaled: list[float] = []
+        for step, value in series:
+            x = left + ((step - x_min) / (x_max - x_min)) * (right - left)
+            y = bottom - ((value - y_min) / (y_max - y_min)) * (bottom - top)
+            scaled.extend([x, y])
+        if len(series) == 1:
+            x, y = scaled
+            canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill=color, outline=color)
+        else:
+            canvas.create_line(*scaled, fill=color, width=2, smooth=True)
+            for x, y in zip(scaled[0::2], scaled[1::2]):
+                canvas.create_oval(x - 2, y - 2, x + 2, y + 2, fill=color, outline=color)
+
+        if show_x_axis:
+            canvas.create_text(left, bottom + 16, text=f"{x_min:g}", anchor="n", fill=MUTED, font=("Consolas", 8))
+            canvas.create_text(right, bottom + 16, text=f"{x_max:g}", anchor="n", fill=MUTED, font=("Consolas", 8))
+            canvas.create_text((left + right) / 2, bottom + 16, text="Step", anchor="n", fill=MUTED, font=("Microsoft YaHei UI", 8))
 
     def _export_current_model_data_file(self) -> None:
         target_path = filedialog.asksaveasfilename(

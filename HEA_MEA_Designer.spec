@@ -5,23 +5,25 @@ from pathlib import Path
 
 BASE_DIR = Path.cwd()
 datas = []
-version_file = BASE_DIR / "VERSION"
-if version_file.exists():
-    datas.append((str(version_file), "."))
-for folder_name in ["data", "models"]:
-    folder = BASE_DIR / folder_name
-    if folder.exists():
-        for source in folder.rglob("*"):
-            if source.is_file():
-                relative_parent = source.relative_to(folder).parent
-                destination = Path(folder_name) / relative_parent
-                datas.append((str(source), str(destination)))
-docs_dir = BASE_DIR / "docs"
-release_docs = ["README_GUI.md", "使用教程.md", "verification.md"]
-for doc_name in release_docs:
-    source = docs_dir / doc_name
+
+release_files = [
+    ("VERSION", "."),
+    ("data/final.lmp", "data"),
+    ("models/二维六边形多晶/final.lmp", "models/二维六边形多晶"),
+    ("models/二维随机多晶/final.lmp", "models/二维随机多晶"),
+    ("models/二维梯度孪晶多晶/final.cfg", "models/二维梯度孪晶多晶"),
+    ("models/倾斜孪晶多晶/final.cfg", "models/倾斜孪晶多晶"),
+    ("models/预存孪晶多晶/final.cfg", "models/预存孪晶多晶"),
+    ("models/双相多晶/final_polycrystal.cfg", "models/双相多晶"),
+    ("models/K-S取向多晶/final_Fe.lmp", "models/K-S取向多晶"),
+    ("docs/README_GUI.md", "docs"),
+    ("docs/使用教程.md", "docs"),
+    ("docs/verification.md", "docs"),
+]
+for source_name, destination in release_files:
+    source = BASE_DIR / source_name
     if source.exists():
-        datas.append((str(source), "docs"))
+        datas.append((str(source), destination))
 
 
 a = Analysis(
@@ -29,7 +31,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=['matplotlib.backends.backend_tkagg'],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

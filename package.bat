@@ -30,19 +30,13 @@ if exist "dist\HEA_MEA_Designer\config.json" (
     if not exist "%RUNTIME_BACKUP%" mkdir "%RUNTIME_BACKUP%"
     copy /Y "dist\HEA_MEA_Designer\config.json" "%RUNTIME_BACKUP%\config.json" >nul
 )
-if exist "dist\HEA_MEA_Designer\generated" (
-    if not exist "%RUNTIME_BACKUP%" mkdir "%RUNTIME_BACKUP%"
-    xcopy /E /I /Y "dist\HEA_MEA_Designer\generated" "%RUNTIME_BACKUP%\generated" >nul
-)
 exit /b 0
 
 :restore_runtime
 if not exist "dist\HEA_MEA_Designer" exit /b 0
 if exist "%RUNTIME_BACKUP%\config.json" (
     copy /Y "%RUNTIME_BACKUP%\config.json" "dist\HEA_MEA_Designer\config.json" >nul
-)
-if exist "%RUNTIME_BACKUP%\generated" (
-    if exist "dist\HEA_MEA_Designer\generated" rmdir /S /Q "dist\HEA_MEA_Designer\generated"
-    xcopy /E /I /Y "%RUNTIME_BACKUP%\generated" "dist\HEA_MEA_Designer\generated" >nul
+) else if exist "config.example.json" (
+    copy /Y "config.example.json" "dist\HEA_MEA_Designer\config.json" >nul
 )
 exit /b 0

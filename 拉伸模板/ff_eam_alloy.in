@@ -1,7 +1,0 @@
-# Example force-field module for EAM/alloy
-# NOTE:
-# 1) If your atom types / element order are fixed, you usually only change the EAM file name.
-# 2) If you change alloy species or type order, also change the element mapping on pair_coeff line.
-
-pair_style      eam/fs
-pair_coeff      * * Ni-Co-Cr_v1.eam.fs Co Cr Ni

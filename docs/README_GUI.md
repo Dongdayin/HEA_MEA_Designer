@@ -18,7 +18,7 @@
 10. 在“裂纹”页可以选择中心裂纹或边缘裂纹，也可以在矩形和椭圆/圆之间切换；长度和开口两项在椭圆模式下分别对应长轴和短轴。
 11. 点击“一键生成全部”可以把几何、裂纹、掺杂和合金配方串起来一次完成。
 
-如果你把程序打包成 exe，程序会把资源按 `data/`、`models/`、`docs/` 归类，旧的 exe 输出会在重新打包时被清理掉。
+如果你把程序打包成 exe，程序会只带上当前版本运行必需的资源：默认 `data/final.lmp`、界面模型库实际引用的预设模型、三份当前说明文档和程序依赖文件。旧的 exe 输出会在重新打包时被清理掉。
 
 ## 打包成 exe
 
@@ -28,7 +28,7 @@
 python -m pip install pyinstaller
 ```
 
-然后运行 [package.bat](../package.bat)。生成的可执行文件会在 `dist\HEA_MEA_Designer` 目录里，同时会把默认要用的 [data/final.lmp](../data/final.lmp)、[data/build.bat](../data/build.bat)、[data/gradient.txt](../data/gradient.txt)、[data/aluminium.xsf](../data/aluminium.xsf) 以及新集成的模型文件夹和说明文档一起复制进去。
+然后运行 [package.bat](../package.bat)。生成的可执行文件会在 `dist\HEA_MEA_Designer` 目录里，同时会把默认要用的 [data/final.lmp](../data/final.lmp)、精选模型预设和当前版本说明文档复制进去；Atomsk 中间文件、历史教程、视频脚本和本机运行输出不会进入分发包。
 
 如果你选的是 `.cfg` 或 `.xsf` 模型，程序会先借助 Atomsk 转成临时 LAMMPS，再进入配方、建模和裂纹流程。
 
