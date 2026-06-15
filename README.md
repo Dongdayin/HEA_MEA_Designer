@@ -61,13 +61,3 @@ Additional smoke checks were run for:
 ## Research Boundary
 
 This project is a modeling and simulation-preparation tool. It does not validate material conclusions by itself. Formal research still requires potential-file suitability checks, convergence tests, system-size and timestep sensitivity analysis, and comparison with experiments or higher-accuracy calculations where appropriate.
-
-## Sharing Materials
-
-A rigorous short-video script is included at:
-
-```text
-docs/video_script_v1.3.3.md
-```
-
-It covers the tool positioning, Atomsk/LAMMPS workflow, reproducibility claims, and the scientific limitations that should be stated when sharing the software.

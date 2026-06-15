@@ -8,7 +8,7 @@ datas = []
 version_file = BASE_DIR / "VERSION"
 if version_file.exists():
     datas.append((str(version_file), "."))
-for folder_name in ["data", "docs", "models"]:
+for folder_name in ["data", "models"]:
     folder = BASE_DIR / folder_name
     if folder.exists():
         for source in folder.rglob("*"):
@@ -16,6 +16,12 @@ for folder_name in ["data", "docs", "models"]:
                 relative_parent = source.relative_to(folder).parent
                 destination = Path(folder_name) / relative_parent
                 datas.append((str(source), str(destination)))
+docs_dir = BASE_DIR / "docs"
+release_docs = ["README_GUI.md", "使用教程.md", "verification.md"]
+for doc_name in release_docs:
+    source = docs_dir / doc_name
+    if source.exists():
+        datas.append((str(source), "docs"))
 
 
 a = Analysis(

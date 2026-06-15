@@ -33,10 +33,17 @@ def validate_packaging_rules() -> None:
     if "VERSION" not in spec_text:
         raise SystemExit("[fail] HEA_MEA_Designer.spec does not include VERSION")
     print("  OK spec includes VERSION")
-    for folder_name in ("data", "docs", "models"):
+    for folder_name in ("data", "models"):
         if f'"{folder_name}"' not in spec_text:
             raise SystemExit(f"[fail] HEA_MEA_Designer.spec does not include {folder_name}/")
         print(f"  OK spec includes {folder_name}/")
+    for doc_name in ("README_GUI.md", "使用教程.md", "verification.md"):
+        if doc_name not in spec_text:
+            raise SystemExit(f"[fail] HEA_MEA_Designer.spec does not include release doc {doc_name}")
+        print(f"  OK spec includes release doc {doc_name}")
+    if "video_script" in spec_text or "iteration_log.md" in spec_text:
+        raise SystemExit("[fail] HEA_MEA_Designer.spec includes non-release documentation")
+    print("  OK spec excludes private/history docs")
 
     package_text = (ROOT / "package.bat").read_text(encoding="utf-8", errors="replace")
     for marker in ("backup_runtime", "restore_runtime", "config.json", "generated"):
@@ -52,8 +59,17 @@ def validate_dist_layout() -> None:
         raise SystemExit(f"[fail] packaged exe is unexpectedly small: {EXE_PATH.stat().st_size} bytes")
     require_path(INTERNAL_DIR / "data" / "final.lmp", "packaged default data")
     require_path(INTERNAL_DIR / "docs" / "README_GUI.md", "packaged README")
+    require_path(INTERNAL_DIR / "docs" / "使用教程.md", "packaged user tutorial")
     require_path(INTERNAL_DIR / "docs" / "verification.md", "packaged verification doc")
-    require_path(INTERNAL_DIR / "docs" / "iteration_log.md", "packaged iteration log")
+    forbidden_docs = (
+        INTERNAL_DIR / "docs" / "iteration_log.md",
+        INTERNAL_DIR / "docs" / "video_script_v1.3.2.md",
+        INTERNAL_DIR / "docs" / "video_script_v1.3.3.md",
+    )
+    for path in forbidden_docs:
+        if path.exists():
+            raise SystemExit(f"[fail] non-release doc was packaged: {path.relative_to(ROOT)}")
+    print("  OK non-release docs excluded")
     require_path(INTERNAL_DIR / "models", "packaged model library")
     require_path(INTERNAL_DIR / "VERSION", "packaged version file")
     packaged_version = (INTERNAL_DIR / "VERSION").read_text(encoding="utf-8").strip()
