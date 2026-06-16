@@ -26,7 +26,7 @@ python tools/create_release.py
 2. 运行 `tests/` 下的核心单元测试，覆盖配方解析、计数分配、掺杂选择、严格数值输入、近距离清理、LAMMPS 数据读写、生成元数据、log 诊断和外部命令失败诊断。
 3. 读取 `data/` 与精选 `models/` 中随软件发布的 `.lmp` 文件，确认更严格的解析规则仍兼容内置科研素材。
 
-`verify_project.py` 会在上述基础上检查 `dist\HEA_MEA_Designer`，确认 exe、内置 `data/`、`docs/`、`models/`、`config.json` 和打包后 `.lmp` 资产仍然有效，同时确认非发布文档、运行输出和中间文件没有进入分发目录。
+`verify_project.py` 会在上述基础上检查 `dist\HEA_MEA_Designer`，确认 exe、内置 `data/`、`docs/`、`models/`、`config.json` 和打包后 `.lmp` 资产仍然有效，同时确认非发布文档、运行输出和中间文件没有进入分发目录。当前 release 文档包括快速说明、使用教程、验证说明、数据来源和文献参考。
 
 `create_release.py` 会先执行项目级验证，再在 `releases/` 下生成 zip、SHA256 校验文件、manifest 和 release notes；发布 zip 内的 `config.json` 来自 `config.example.json`，不会包含本机路径。`releases/` 是本地分发产物，不进入版本库。
 

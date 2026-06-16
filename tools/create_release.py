@@ -21,6 +21,7 @@ ALLOWED_INTERNAL_FILES = {
     "docs/README_GUI.md",
     "docs/使用教程.md",
     "docs/verification.md",
+    "docs/data_sources.md",
     "models/二维六边形多晶/final.lmp",
     "models/二维随机多晶/final.lmp",
     "models/二维梯度孪晶多晶/final.cfg",

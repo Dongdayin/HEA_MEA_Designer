@@ -19,6 +19,7 @@ release_files = [
     ("docs/README_GUI.md", "docs"),
     ("docs/使用教程.md", "docs"),
     ("docs/verification.md", "docs"),
+    ("docs/data_sources.md", "docs"),
 ]
 for source_name, destination in release_files:
     source = BASE_DIR / source_name

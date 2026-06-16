@@ -4021,7 +4021,7 @@ class AlloyDesignerApp(tk.Tk):
             self.footer_workspace.configure(text=f"工作目录: {self.workspace_dir}")
         if hasattr(self, "about_summary_var"):
             self.about_summary_var.set(
-                f"内置教程与帮助页已载入，可直接浏览使用教程和快速说明。\n"
+                f"内置教程与帮助页已载入，可直接浏览使用教程、快速说明和数据来源。\n"
                 f"工作目录: {self.workspace_dir}\nLAMMPS: {self.lammps_path_var.get()}\n运行时: {self.lammps_runtime_summary_var.get()}"
             )
 
@@ -4181,7 +4181,7 @@ class AlloyDesignerApp(tk.Tk):
             actions.columnconfigure(column, weight=1, uniform="actions")
         self._home_action_card(actions, "建模与合金化", "配方、掺杂、单晶/多晶、纳米粉末和裂纹建模。", "进入建模模块", lambda: self.notebook.select(self.tab_modeling), primary=True).grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         self._home_action_card(actions, "LAMMPS 工作流", "生成输入脚本、保存预览、启动运行并查看热力学曲线。", "进入 LAMMPS 接口", lambda: self.notebook.select(self.tab_lammps)).grid(row=0, column=1, sticky="nsew", padx=8)
-        self._home_action_card(actions, "文档与复现", "查看内置教程、验证命令和发布说明。", "打开教程与帮助", lambda: self.notebook.select(self.tab_about)).grid(row=0, column=2, sticky="nsew", padx=(8, 0))
+        self._home_action_card(actions, "文档与复现", "查看内置教程、数据来源、验证命令和发布说明。", "打开教程与帮助", lambda: self.notebook.select(self.tab_about)).grid(row=0, column=2, sticky="nsew", padx=(8, 0))
 
         lower = ttk.Frame(root, style="App.TFrame")
         lower.pack(fill="both", expand=True, pady=(12, 0))
@@ -4217,13 +4217,14 @@ class AlloyDesignerApp(tk.Tk):
         card = ttk.LabelFrame(frame, text="教程与帮助", style="Section.TLabelframe", padding=18)
         card.pack(fill="x")
         tk.Label(card, text="内嵌超级详细教程", bg=PANEL, fg=ACCENT_DARK, font=("Microsoft YaHei UI", 26, "bold")).pack(anchor="w")
-        tk.Label(card, text="直接浏览完整操作教程、快速说明和 LAMMPS 参数索引。", bg=PANEL, fg=TEXT, font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w", pady=(4, 0))
+        tk.Label(card, text="直接浏览完整操作教程、快速说明、数据来源和 LAMMPS 参数索引。", bg=PANEL, fg=TEXT, font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w", pady=(4, 0))
         tk.Label(card, textvariable=self.about_summary_var, bg=PANEL, fg=MUTED, justify="left", wraplength=1100, font=("Microsoft YaHei UI", 10)).pack(anchor="w", pady=(10, 0))
         info = ttk.Frame(card)
         info.pack(fill="x", pady=(14, 0))
         ttk.Button(info, text="刷新文档", command=self._refresh_tutorial_view).pack(side="left")
         ttk.Button(info, text="打开使用教程.md", command=lambda: self._open_document(docs_resource_path("使用教程.md"))).pack(side="left", padx=(8, 0))
         ttk.Button(info, text="打开 README_GUI.md", command=lambda: self._open_document(docs_resource_path("README_GUI.md"))).pack(side="left", padx=(8, 0))
+        ttk.Button(info, text="打开 data_sources.md", command=lambda: self._open_document(docs_resource_path("data_sources.md"))).pack(side="left", padx=(8, 0))
         ttk.Button(info, text="进入工作台", command=lambda: self.notebook.select(self.tab_home)).pack(side="left", padx=(8, 0))
         ttk.Button(info, text="进入 LAMMPS 接口", command=lambda: self.notebook.select(self.tab_lammps)).pack(side="left", padx=(8, 0))
 
@@ -4316,6 +4317,7 @@ class AlloyDesignerApp(tk.Tk):
         self._configure_tutorial_text(tutorial_text)
         self._append_markdown_document(tutorial_text, "使用教程.md", docs_resource_path("使用教程.md"))
         self._append_markdown_document(tutorial_text, "README_GUI.md", docs_resource_path("README_GUI.md"), separator=True)
+        self._append_markdown_document(tutorial_text, "data_sources.md", docs_resource_path("data_sources.md"), separator=True)
         tutorial_text.configure(state="disabled")
         tutorial_text.yview_moveto(0.0)
 

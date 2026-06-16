@@ -25,6 +25,7 @@ RELEASE_DOC_FILES = (
     "docs/README_GUI.md",
     "docs/使用教程.md",
     "docs/verification.md",
+    "docs/data_sources.md",
 )
 
 
@@ -96,6 +97,7 @@ def validate_dist_layout() -> None:
     require_path(INTERNAL_DIR / "docs" / "README_GUI.md", "packaged README")
     require_path(INTERNAL_DIR / "docs" / "使用教程.md", "packaged user tutorial")
     require_path(INTERNAL_DIR / "docs" / "verification.md", "packaged verification doc")
+    require_path(INTERNAL_DIR / "docs" / "data_sources.md", "packaged data source doc")
     require_path(INTERNAL_DIR / "models", "packaged model library")
     validate_exact_internal_tree("data", RELEASE_DATA_FILES)
     validate_exact_internal_tree("models", RELEASE_MODEL_FILES)
