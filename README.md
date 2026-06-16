@@ -43,8 +43,6 @@ The public repository intentionally keeps only the files needed to build, verify
 - the default structure file `data/final.lmp`;
 - the curated model presets referenced by the GUI model library.
 
-Private notes, video scripts, old tutorial material, Atomsk intermediate output, generated runtime files, and local distribution archives are excluded from the repository and release zip.
-
 ## Data Sources and References
 
 The bundled assets are documented in [docs/data_sources.md](docs/data_sources.md). In short:
