@@ -2,7 +2,7 @@
 
 HEA/MEA Designer is a Windows desktop workflow tool for high-entropy and medium-entropy alloy molecular-dynamics preprocessing. It integrates alloy recipe setup, doping, grain/geometry generation, single-crystal and polycrystal modeling, crack templates, Atomsk postprocessing, and LAMMPS input preparation.
 
-The current public release is **v1.3.5**.
+The current public release is **v1.3.6**.
 
 Naming convention:
 
@@ -14,7 +14,7 @@ Naming convention:
 
 Download the Windows package from:
 
-- [HEA_MEA_Designer v1.3.5](https://github.com/Dongdayin/HEA_MEA_Designer/releases/tag/v1.3.5)
+- [HEA_MEA_Designer v1.3.6](https://github.com/Dongdayin/HEA_MEA_Designer/releases/tag/v1.3.6)
 
 After downloading, extract the archive and run:
 
@@ -57,7 +57,7 @@ The reference document lists citation guidance for Atomsk, LAMMPS, and foundatio
 
 ## Recent Fixes
 
-v1.3.2 fixed an Atomsk workflow issue where repeated postprocessing could make the output path equal to the current source model path. v1.3.3 aligns the public product name across the GUI, documentation, repository, and release pages. v1.3.4 trims the public repository and release package to the current necessary files only. v1.3.5 adds explicit data-source and citation documentation while keeping private video scripts local only. The GUI now:
+v1.3.2 fixed an Atomsk workflow issue where repeated postprocessing could make the output path equal to the current source model path. v1.3.3 aligns the public product name across the GUI, documentation, repository, and release pages. v1.3.4 trims the public repository and release package to the current necessary files only. v1.3.5 adds explicit data-source and citation documentation while keeping private video scripts local only. v1.3.6 strengthens metallic close-contact cleanup and fixes a periodic-boundary pruning gap. The GUI now:
 
 - warns in the command preview when a source/output collision is detected;
 - provides an `自动命名输出` button;
@@ -66,7 +66,7 @@ v1.3.2 fixed an Atomsk workflow issue where repeated postprocessing could make t
 
 ## Validation
 
-The v1.3.5 package was checked with:
+The v1.3.6 package was checked with:
 
 ```powershell
 python tools\verify_project.py

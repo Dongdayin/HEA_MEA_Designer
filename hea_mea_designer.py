@@ -1311,6 +1311,7 @@ DEFAULT_PRESET_3 = "Co33.3333Cr33.3333Ni33.3334"
 DEFAULT_PRESET_5 = "Fe20Co20Ni20Cr20Mn20"
 DEFAULT_PRESET_7 = "Al14.2857Co14.2857Cr14.2857Fe14.2857Mn14.2857Ni14.2857Ti14.2857"
 DEFAULT_SIMPLE_GRAIN_SCALE = 80.0
+DEFAULT_CLOSE_CONTACT_CUTOFF = 1.8
 DEFAULT_POWDER_SHAPE = "sphere"
 CRYSTAL_STRUCTURE_CHOICES = ("fcc", "bcc", "hcp", "sc", "diamond")
 CRYSTAL_STRUCTURE_DEFAULTS: dict[str, tuple[float, float | None]] = {
@@ -2960,7 +2961,7 @@ def prune_close_contact_atoms(
     box: BoxBounds,
     *,
     type_assignments: list[int] | None = None,
-    threshold: float = 0.8,
+    threshold: float = DEFAULT_CLOSE_CONTACT_CUTOFF,
 ) -> tuple[list[AtomRecord], list[int] | None, int, float]:
     if not atoms:
         return [], [] if type_assignments is not None else None, 0, 0.0
@@ -2974,13 +2975,14 @@ def prune_close_contact_atoms(
     cell_size = threshold
     box_lengths = (box.width, box.height, box.depth)
     box_lows = (box.xlo, box.ylo, box.zlo)
-    cell_counts = [max(1, int(math.ceil(length / cell_size))) if length > 0 else 1 for length in box_lengths]
+    cell_counts = [max(1, int(math.floor(length / cell_size))) if length > 0 else 1 for length in box_lengths]
+    cell_widths = [length / count if length > 0 else cell_size for length, count in zip(box_lengths, cell_counts)]
 
-    def cell_index(value: float, low: float, length: float, cells: int) -> int:
+    def cell_index(value: float, low: float, length: float, cells: int, width: float) -> int:
         if cells <= 1 or length <= 0:
             return 0
         relative = (value - low) % length
-        index = int(relative / cell_size)
+        index = int(relative / width)
         return min(cells - 1, max(0, index))
 
     kept_atoms: list[AtomRecord] = []
@@ -2992,9 +2994,9 @@ def prune_close_contact_atoms(
     for source_index, atom in enumerate(atoms):
         atom_type = atom.atom_type if type_assignments is None else type_assignments[source_index]
         key = (
-            cell_index(atom.x, box_lows[0], box_lengths[0], cell_counts[0]),
-            cell_index(atom.y, box_lows[1], box_lengths[1], cell_counts[1]),
-            cell_index(atom.z, box_lows[2], box_lengths[2], cell_counts[2]),
+            cell_index(atom.x, box_lows[0], box_lengths[0], cell_counts[0], cell_widths[0]),
+            cell_index(atom.y, box_lows[1], box_lengths[1], cell_counts[1], cell_widths[1]),
+            cell_index(atom.z, box_lows[2], box_lengths[2], cell_counts[2], cell_widths[2]),
         )
         is_close_contact = False
         for dx in (-1, 0, 1):
@@ -7883,7 +7885,7 @@ class AlloyDesignerApp(tk.Tk):
             atoms,
             structure.box,
             type_assignments=assignments,
-            threshold=0.8,
+            threshold=DEFAULT_CLOSE_CONTACT_CUTOFF,
         )
         if removed_close_contacts > 0:
             self._log(

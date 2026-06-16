@@ -215,6 +215,53 @@ class CoreLogicTests(unittest.TestCase):
         self.assertEqual([atom.atom_id for atom in atoms], [1, 2])
         self.assertEqual(types, [1, 2])
 
+    def test_default_close_contact_cutoff_removes_metallic_overlap(self) -> None:
+        structure = app.LammpsStructure(
+            path=Path("input.lmp"),
+            header_lines=[],
+            mass_lines=[],
+            atom_lines=[],
+            tail_lines=[],
+            atoms=[
+                app.AtomRecord(atom_id=1, atom_type=1, x=1.0, y=1.0, z=1.0),
+                app.AtomRecord(atom_id=2, atom_type=1, x=2.4, y=1.0, z=1.0),
+                app.AtomRecord(atom_id=3, atom_type=1, x=6.0, y=1.0, z=1.0),
+            ],
+            box=app.BoxBounds(0.0, 10.0, 0.0, 10.0, 0.0, 10.0),
+            atom_count=3,
+            atom_types=1,
+        )
+
+        atoms, _types, removed_count, minimum_distance = app.prune_close_contact_atoms(structure.atoms, structure.box)
+
+        self.assertEqual(app.DEFAULT_CLOSE_CONTACT_CUTOFF, 1.8)
+        self.assertEqual(removed_count, 1)
+        self.assertAlmostEqual(minimum_distance, 1.4, places=6)
+        self.assertEqual(len(atoms), 2)
+
+    def test_close_contact_pruning_catches_periodic_boundary_sliver_cells(self) -> None:
+        structure = app.LammpsStructure(
+            path=Path("input.lmp"),
+            header_lines=[],
+            mass_lines=[],
+            atom_lines=[],
+            tail_lines=[],
+            atoms=[
+                app.AtomRecord(atom_id=1, atom_type=1, x=0.05, y=5.0, z=1.0),
+                app.AtomRecord(atom_id=2, atom_type=1, x=98.98, y=5.0, z=1.0),
+                app.AtomRecord(atom_id=3, atom_type=1, x=50.0, y=5.0, z=1.0),
+            ],
+            box=app.BoxBounds(0.0, 100.0, 0.0, 10.0, 0.0, 10.0),
+            atom_count=3,
+            atom_types=1,
+        )
+
+        atoms, _types, removed_count, minimum_distance = app.prune_close_contact_atoms(structure.atoms, structure.box)
+
+        self.assertEqual(removed_count, 1)
+        self.assertAlmostEqual(minimum_distance, 1.07, places=6)
+        self.assertEqual(len(atoms), 2)
+
     def test_write_lammps_structure_round_trips_counts_and_sections(self) -> None:
         structure = make_structure()
 
